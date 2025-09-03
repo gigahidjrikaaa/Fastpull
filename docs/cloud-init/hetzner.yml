@@ -1,0 +1,25 @@
+#cloud-config
+# AWS User Data for setting up fastpull non-interactively.
+# Replace placeholder values before use.
+
+package_update: true
+packages:
+  - curl
+  - jq
+  - tar
+
+runcmd:
+  - |
+    # Install fastpull
+    curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+
+    # Set up the runner non-interactively
+    export GDR_SCOPE="repo"
+    export GDR_URL="https://github.com/YOUR_GITHUB_OWNER/YOUR_REPO"
+    export GDR_APP_NAME="my-prod-app"
+    export GDR_RUNNER_LABELS="self-hosted,linux,x64,prod-app"
+    export GDR_DEPLOY_MODE="docker"
+    export GDR_TOKEN="YOUR_RUNNER_REGISTRATION_TOKEN"
+    export FASTPULL_NONINTERACTIVE="yes"
+
+    sudo fastpull setup

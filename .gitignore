@@ -1,0 +1,20 @@
+# General
+*.log
+*.swp
+.DS_Store
+
+# Build artifacts
+/staging
+*.deb
+
+# Local dev
+/work/
+/_work/
+/out/
+/dist/
+/node_modules/
+
+# Demo artifacts
+*.gif
+*.cast
+get-docker.sh

@@ -1,0 +1,39 @@
+# .github/workflows/deploy.yml
+# Sample workflow for systemd deployments via fastpull
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - main # Or your deployment branch
+
+jobs:
+  deploy:
+    name: Deploy
+    # IMPORTANT: Replace these labels with the ones you configured during setup.
+    runs-on: [self-hosted, linux, x64, APP_SLUG] # Match your runner labels
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application
+        run: |
+          set -e
+          # This path is configured during 'fastpull setup'
+          APP_DIR="/opt/apps/APP_SLUG"
+          
+          echo "--> Syncing application files to ${APP_DIR}"
+          # Add build steps here if your application needs them
+          # e.g., npm install && npm run build
+          rsync -av --delete --exclude='.git/' ./ "${APP_DIR}/"
+          
+          echo "--> Restarting systemd service"
+          # This command is granted passwordless sudo access during 'fastpull setup'
+          sudo systemctl restart MY_SERVICE
+          
+          echo "--> Verifying service status"
+          sleep 5 # Give the service a moment to start up
+          sudo systemctl is-active --quiet MY_SERVICE
+          
+          echo "--> Deployment complete!"

@@ -1,0 +1,39 @@
+# .github/workflows/deploy.yml
+# Sample workflow for Docker Compose deployments via fastpull
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - main # Or your deployment branch
+
+jobs:
+  deploy:
+    name: Deploy
+    # IMPORTANT: Replace these labels with the ones you configured during setup.
+    runs-on: [self-hosted, linux, x64, APP_SLUG] # Match your runner labels
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application
+        run: |
+          set -e
+          # This path is configured during 'fastpull setup'
+          APP_DIR="/opt/apps/APP_SLUG"
+          
+          echo "--> Syncing application files to ${APP_DIR}"
+          # Use rsync to efficiently update the application directory
+          rsync -av --delete --exclude='.git/' ./ "${APP_DIR}/"
+          
+          cd "${APP_DIR}"
+          
+          echo "--> Pulling latest images"
+          docker compose pull || true
+          
+          echo "--> Building and starting containers"
+          # --remove-orphans cleans up containers for services that no longer exist
+          docker compose up -d --build --remove-orphans
+          
+          echo "--> Deployment complete!"

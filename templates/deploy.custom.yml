@@ -1,0 +1,42 @@
+# .github/workflows/deploy.yml
+# Sample workflow for custom command deployments via fastpull
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - main # Or your deployment branch
+
+jobs:
+  deploy:
+    name: Deploy
+    # IMPORTANT: Replace these labels with the ones you configured during setup.
+    runs-on: [self-hosted, linux, x64, APP_SLUG] # Match your runner labels
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application
+        run: |
+          set -e
+          # This path is configured during 'fastpull setup'
+          APP_DIR="/opt/apps/APP_SLUG"
+          
+          echo "--> Syncing application files to ${APP_DIR}"
+          rsync -av --delete --exclude='.git/' ./ "${APP_DIR}/"
+          
+          cd "${APP_DIR}"
+          
+          echo "--> Running custom deployment command(s)"
+          # ------------------------------------------------
+          # --- ADD YOUR CUSTOM DEPLOYMENT LOGIC HERE ---
+          #
+          # Example: Run a shell script from your repo
+          #   ./scripts/deploy.sh --production
+          #
+          # Example: Run a binary
+          #   ./my-app-binary --config prod.toml
+          # ------------------------------------------------
+          
+          echo "--> Deployment complete!"

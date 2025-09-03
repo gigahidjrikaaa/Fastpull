@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+echo "Note: Uninstalling the fastpull package does not remove installed runners."
+echo "Use 'fastpull uninstall <slug>' or 'fastpull destroy <slug>' before removing the package."

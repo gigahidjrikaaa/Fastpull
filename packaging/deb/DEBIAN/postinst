@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+chmod 0755 /usr/local/bin/fastpull
+echo "fastpull installed. Run 'fastpull help' to get started."
