@@ -173,6 +173,54 @@ _normalize_repo_url() {
   echo "${raw%.git}"
 }
 
+_get_pat() {
+  local pat="${FASTPULL_GH_PAT:-${GITHUB_TOKEN:-}}"
+  if [[ -n "${pat}" ]]; then
+    echo -n "${pat}"
+    return 0
+  fi
+  local tmp
+  _prompt_masked "GitHub Personal Access Token (with permissions to create runner registration tokens)" tmp "FASTPULL_GH_PAT"
+  echo -n "${tmp}"
+}
+
+_gen_runner_token() {
+  local scope="$1" url="$2"
+  local https_url owner repo org endpoint
+  https_url=$(_normalize_repo_url "${url}")
+  if [[ -z "${https_url}" ]]; then
+    _fatal "Could not normalize repository/organization URL for token generation."
+  fi
+  case "${scope}" in
+    repo)
+      owner=$(echo "${https_url}" | awk -F/ '{print $(NF-1)}')
+      repo=$(basename "${https_url}")
+      endpoint="${GITHUB_API_URL}/repos/${owner}/${repo}/actions/runners/registration-token"
+      ;;
+    org)
+      org=$(basename "${https_url}")
+      endpoint="${GITHUB_API_URL}/orgs/${org}/actions/runners/registration-token"
+      ;;
+    *)
+      _fatal "Unsupported scope for token generation: ${scope}"
+      ;;
+  esac
+
+  local pat token_json token
+  pat=$(_get_pat)
+  _info "Requesting short-lived registration token from GitHub API..."
+  token_json=$(curl -fsSL -X POST \
+    -H "Authorization: Bearer ${pat}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "${endpoint}" 2>/dev/null) || true
+  token=$(echo "${token_json}" | jq -r '.token // empty')
+  if [[ -z "${token}" ]]; then
+    _fatal "Failed to obtain registration token via GitHub API. Check PAT permissions and URL."
+  fi
+  echo -n "${token}"
+}
+
 _cmd_activate() {
   if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<'USAGE'
@@ -220,7 +268,23 @@ USAGE
   _prompt "Runner slug" slug "${default_slug}" "GDR_SLUG"
   labels="self-hosted,linux,x64,${slug}"
 
-  _prompt_masked "GitHub Runner registration token (or set GDR_TOKEN)" token "GDR_TOKEN"
+  # Obtain a registration token: prefer PAT-based generation if available
+  if [[ -n "${GDR_TOKEN:-}" ]]; then
+    token="${GDR_TOKEN}"
+  else
+    local use_pat
+    if [[ -n "${FASTPULL_GH_PAT:-${GITHUB_TOKEN:-}}" ]]; then
+      use_pat="${FASTPULL_USE_PAT:-yes}"
+    else
+      use_pat="${FASTPULL_USE_PAT:-no}"
+    fi
+    if [[ "${use_pat}" == "yes" ]]; then
+      token=$(_gen_runner_token "repo" "${https_url}")
+      _info "Obtained short-lived registration token from GitHub API."
+    else
+      _prompt_masked "GitHub Runner registration token (or set GDR_TOKEN)" token "GDR_TOKEN"
+    fi
+  fi
 
   _info "Configuring runner non-interactively..."
   local env_cmd=(env FASTPULL_NONINTERACTIVE=yes GDR_SCOPE=repo GDR_URL="${https_url}" GDR_APP_NAME="${repo_name}" GDR_SLUG="${slug}" GDR_RUNNER_LABELS="${labels}" GDR_DEPLOY_MODE="${deploy_mode}" GDR_TOKEN="${token}")
@@ -347,7 +411,20 @@ USAGE
     _prompt "Systemd service name to restart on deploy" gdr_systemd_service "${gdr_slug}.service" "GDR_SYSTEMD_SERVICE"
   fi
 
-  _prompt_masked "GitHub Runner registration token" gdr_token "GDR_TOKEN"
+  # Optionally generate runner token with PAT
+  local use_pat
+  if [[ -n "${FASTPULL_GH_PAT:-${GITHUB_TOKEN:-}}" ]]; then
+    use_pat="${FASTPULL_USE_PAT:-yes}"
+  else
+    use_pat="${FASTPULL_USE_PAT:-no}"
+  fi
+  if [[ -z "${GDR_TOKEN:-}" && "${use_pat}" == "yes" ]]; then
+    gdr_token=$(_gen_runner_token "${gdr_scope}" "${gdr_url}")
+    _info "Obtained short-lived registration token from GitHub API."
+  fi
+  if [[ -z "${gdr_token:-}" ]]; then
+    _prompt_masked "GitHub Runner registration token" gdr_token "GDR_TOKEN"
+  fi
 
   local runner_dir="${gdr_runner_base}/${gdr_slug}"
   local app_dir="${gdr_app_base}/${gdr_slug}"

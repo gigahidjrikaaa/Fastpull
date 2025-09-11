@@ -299,6 +299,15 @@ Fastpull supports non-interactive setup and customization via environment variab
 - `FASTPULL_VERSION_OVERRIDE`: Override runner version (e.g., `2.300.0`).
 - `FASTPULL_RUNNER_SHA256`: SHA256 to verify the downloaded runner archive.
 
+PAT-based token generation (optional):
+- `FASTPULL_GH_PAT`: A GitHub Personal Access Token used to automatically create a short‑lived runner registration token via the GitHub API.
+- `GITHUB_TOKEN`: Also recognized as a source for the PAT if `FASTPULL_GH_PAT` is not set.
+- `FASTPULL_USE_PAT`: `yes`/`no` to enable using the PAT automatically. Default: `yes` if a PAT is present, otherwise `no`.
+
+PAT permissions: the PAT must be allowed to create self‑hosted runner registration tokens.
+- Fine‑grained token: grant “Self‑hosted runners: Read and write” on the repository (and on the organization for org‑level).
+- Classic token: repo access for private repos (or public_repo for public), and organization scope that allows Actions runner management for org‑level.
+
 These are demonstrated in `docs/cloud-init/*.yml` for various cloud providers.
 
 ## Security
