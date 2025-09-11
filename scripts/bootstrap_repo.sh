@@ -1677,9 +1677,9 @@ Please follow a conventional commit message format.
 Example: `feat: add --json output to list command`
 EOF
 
-echo "==> Creating docs/SECURITY.md..."
+echo "==> Creating SECURITY.md..."
 mkdir -p fastpull/docs
-cat <<'EOF' > fastpull/docs/SECURITY.md
+cat <<'EOF' > fastpull/SECURITY.md
 # Security Policy
 
 The security of Fastpull is a top priority. We appreciate your efforts to responsibly disclose your findings.
@@ -1944,3 +1944,4 @@ set_permissions() {
 
 # --- Run the main function ---
 main
+
