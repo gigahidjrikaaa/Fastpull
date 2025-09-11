@@ -2,131 +2,127 @@
 #
 # fastpull: A zero-dependency CLI for GitHub Actions push-to-deploy runners.
 #
-# Author: Your Name <you@example.com>
+# Author: Giga Hidjrika Aura Adkhy <gigahidjrikaaa@gmail.com>
 # License: MIT
-# Version: 0.2.0
+# Version: 0.2.1
 
 set -o pipefail
 
 # --- Configuration & Globals ---
-readonly FASTPULL_VERSION="0.2.0"
+readonly FASTPULL_VERSION="0.2.1"
 readonly GITHUB_API_URL="https://api.github.com"
 readonly RUNNER_RELEASES_URL="${GITHUB_API_URL}/repos/actions/runner/releases/latest"
 
 # --- Colors ---
 setup_colors() {
-    if [[ -t 1 ]] && [[ "${FASTPULL_COLOR:-auto}" != "never" ]]; then
-        CLR_RESET="\033[0m"
-        CLR_RED="\033[0;31m"
-        CLR_GREEN="\033[0;32m"
-        CLR_YELLOW="\033[0;33m"
-        CLR_BLUE="\033[0;34m"
-        CLR_BOLD="\033[1m"
-    else
-        CLR_RESET=""
-        CLR_RED=""
-        CLR_GREEN=""
-        CLR_YELLOW=""
-        CLR_BLUE=""
-        CLR_BOLD=""
-    fi
+  if [[ -t 1 ]] && [[ "${FASTPULL_COLOR:-auto}" != "never" ]]; then
+    CLR_RESET="\033[0m"
+    CLR_RED="\033[0;31m"
+    CLR_GREEN="\033[0;32m"
+    CLR_YELLOW="\033[0;33m"
+    CLR_BLUE="\033[0;34m"
+    CLR_BOLD="\033[1m"
+  else
+    CLR_RESET=""
+    CLR_RED=""
+    CLR_GREEN=""
+    CLR_YELLOW=""
+    CLR_BLUE=""
+    CLR_BOLD=""
+  fi
 }
 
 # --- Logging & Utility Functions ---
 _log() {
-    local -r color="$1"
-    local -r level="$2"
-    shift 2
-    echo -e "${color}${CLR_BOLD}[${level}]${CLR_RESET}${color} $@${CLR_RESET}" >&2
+  local -r color="$1"
+  local -r level="$2"
+  shift 2
+  echo -e "${color}${CLR_BOLD}[${level}]${CLR_RESET}${color} $*${CLR_RESET}" >&2
 }
 _info() { _log "${CLR_BLUE}" "INFO" "$@"; }
 _warn() { _log "${CLR_YELLOW}" "WARN" "$@"; }
 _error() { _log "${CLR_RED}" "ERROR" "$@"; }
 _success() { _log "${CLR_GREEN}" "SUCCESS" "$@"; }
-_fatal() { _error "$@"; exit 1; }
+_fatal() {
+  _error "$@"
+  exit 1
+}
 
 _check_root() {
-    if [[ "${EUID}" -ne 0 ]]; then
-        _fatal "This operation requires root privileges. Please run with sudo."
-    fi
+  if [[ "${EUID}" -ne 0 ]]; then
+    _fatal "This operation requires root privileges. Please run with sudo."
+  fi
 }
 
 _check_deps() {
-    for dep in "$@"; do
-        if ! command -v "${dep}" &>/dev/null;
-        then
-            _fatal "Required dependency '${dep}' is not installed. Please install it and try again."
-        fi
-    done
+  for dep in "$@"; do
+    if ! command -v "${dep}" &>/dev/null; then
+      _fatal "Required dependency '${dep}' is not installed. Please install it and try again."
+    fi
+  done
 }
 
 _prompt() {
-    local -r message="$1"
-    local -r var_name="$2"
-    local -r default_val="$3"
-    local -r env_var_name="$4"
-    
-    local current_val
-    eval "current_val=\"\"
-${env_var_name}:-\"
-\""
+  local -r message="$1"
+  local -r var_name="$2"
+  local -r default_val="$3"
+  local -r env_var_name="$4"
 
-    if [[ -n "${current_val}" ]]; then
-        eval "${var_name}='${current_val}'"
-        _info "Using value from environment variable ${env_var_name}: ${current_val}"
-        return
+  local current_val="${!env_var_name:-}"
+
+  if [[ -n "${current_val}" ]]; then
+    eval "${var_name}='${current_val}'"
+    _info "Using value from environment variable ${env_var_name}: ${current_val}"
+    return
+  fi
+
+  if [[ "${FASTPULL_NONINTERACTIVE:-no}" == "yes" ]]; then
+    if [[ -n "${default_val}" ]]; then
+      eval "${var_name}='${default_val}'"
+      _info "Non-interactive mode: using default value for ${var_name}: ${default_val}"
+    else
+      _fatal "Non-interactive mode: no default value for required input '${message}' (env var: ${env_var_name})."
     fi
+    return
+  fi
 
-    if [[ "${FASTPULL_NONINTERACTIVE:-no}" == "yes" ]]; then
-        if [[ -n "${default_val}" ]]; then
-            eval "${var_name}='${default_val}'"
-            _info "Non-interactive mode: using default value for ${var_name}: ${default_val}"
-        else
-            _fatal "Non-interactive mode: no default value for required input '${message}' (env var: ${env_var_name})."
-        fi
-        return
-    fi
-
-    read -p "$(echo -e "${CLR_YELLOW}?${CLR_RESET} ${message} [${default_val}]: ")" input
-    eval "${var_name}='${input:-${default_val}}'"
+  read -r -p "$(echo -e "${CLR_YELLOW}?${CLR_RESET} ${message} [${default_val}]: ")" input
+  eval "${var_name}='${input:-${default_val}}'"
 }
 
 _prompt_masked() {
-    local -r message="$1"
-    local -r var_name="$2"
-    local -r env_var_name="$3"
+  local -r message="$1"
+  local -r var_name="$2"
+  local -r env_var_name="$3"
 
-    local current_val
-    eval "current_val=\"
-${env_var_name}:-\"
-\""
+  local current_val="${!env_var_name:-}"
 
-    if [[ -n "${current_val}" ]]; then
-        eval "${var_name}='${current_val}'"
-        _info "Using value from environment variable ${env_var_name}."
-        return
-    fi
+  if [[ -n "${current_val}" ]]; then
+    eval "${var_name}='${current_val}'"
+    _info "Using value from environment variable ${env_var_name}."
+    return
+  fi
 
-    if [[ "${FASTPULL_NONINTERACTIVE:-no}" == "yes" ]]; then
-        _fatal "Non-interactive mode: no value provided for required secret '${message}' (env var: ${env_var_name})."
-    fi
+  if [[ "${FASTPULL_NONINTERACTIVE:-no}" == "yes" ]]; then
+    _fatal "Non-interactive mode: no value provided for required secret '${message}' (env var: ${env_var_name})."
+  fi
 
-    read -sp "$(echo -e "${CLR_YELLOW}?${CLR_RESET} ${message}: ")" input
-    echo
-    eval "${var_name}='${input}'"
-    if [[ -z "${input}" ]]; then
-        _fatal "Input cannot be empty."
-    fi
+  read -r -s -p "$(echo -e "${CLR_YELLOW}?${CLR_RESET} ${message}: ")" input
+  echo
+  eval "${var_name}='${input}'"
+  if [[ -z "${input}" ]]; then
+    _fatal "Input cannot be empty."
+  fi
 }
 
 _slugify() {
-    echo "$1" | tr -cs 'a-zA-Z0-9' '-' | tr '[:upper:]' '[:lower:]' | sed 's/--*//g; s/^-//; s/-$//'
+  echo "$1" | tr -cs 'a-zA-Z0-9' '-' | tr '[:upper:]' '[:lower:]' | sed 's/--*//g; s/^-//; s/-$//'
 }
 
 # --- Main Command Functions ---
 
 _cmd_help() {
-    cat <<USAGE
+  cat <<USAGE
 ${CLR_BOLD}fastpull${CLR_RESET} ${FASTPULL_VERSION}
 A zero-dependency CLI for GitHub Actions push-to-deploy runners.
 
@@ -137,7 +133,7 @@ ${CLR_BOLD}COMMANDS:${CLR_RESET}
     ${CLR_GREEN}setup${CLR_RESET}              Interactively set up a new self-hosted runner.
     ${CLR_GREEN}list${CLR_RESET}               List all runners managed by fastpull.
     ${CLR_GREEN}status <slug>${CLR_RESET}      Show the status of a specific runner.
-    ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest version.
+    ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest (or specified) version.
     ${CLR_GREEN}uninstall <slug>${CLR_RESET}   Uninstall a runner service (keeps app data).
     ${CLR_GREEN}destroy <slug>${CLR_RESET}     Aggressively remove a runner and its related files.
     ${CLR_GREEN}doctor${CLR_RESET}             Run diagnostics to check system compatibility.
@@ -153,178 +149,214 @@ USAGE
 }
 
 _cmd_version() {
-    echo "fastpull version ${FASTPULL_VERSION}"
+  echo "fastpull version ${FASTPULL_VERSION}"
 }
 
 _cmd_setup() {
-    _check_root
-    _check_deps "curl" "jq" "tar"
+  _check_root
+  _check_deps "curl" "jq" "tar"
 
-    _info "Starting interactive GitHub Actions runner setup..."
-    _info "Override any prompt by setting the corresponding GDR_* environment variable."
+  _info "Starting interactive GitHub Actions runner setup..."
+  _info "Override any prompt by setting the corresponding GDR_* environment variable."
 
-    local gdr_scope gdr_url gdr_app_name gdr_slug gdr_runner_labels gdr_runner_base gdr_app_base gdr_deploy_mode gdr_systemd_service gdr_token
-    
-    _prompt "Runner scope (repo|org)" gdr_scope "repo" "GDR_SCOPE"
-    if [[ "${gdr_scope}" != "repo" && "${gdr_scope}" != "org" ]]; then
-        _fatal "Scope must be 'repo' or 'org'."
+  local gdr_scope gdr_url gdr_app_name gdr_slug gdr_runner_labels gdr_runner_base gdr_app_base gdr_deploy_mode gdr_systemd_service gdr_token
+
+  _prompt "Runner scope (repo|org)" gdr_scope "repo" "GDR_SCOPE"
+  if [[ "${gdr_scope}" != "repo" && "${gdr_scope}" != "org" ]]; then
+    _fatal "Scope must be 'repo' or 'org'."
+  fi
+
+  if [[ "${gdr_scope}" == "repo" ]]; then
+    _prompt "GitHub repository URL (e.g., https://github.com/owner/repo)" gdr_url "" "GDR_URL"
+  else
+    _prompt "GitHub organization URL (e.g., https://github.com/my-org)" gdr_url "" "GDR_URL"
+  fi
+
+  _prompt "Application name (for slug generation)" gdr_app_name "$(hostname)" "GDR_APP_NAME"
+  gdr_slug=$(_slugify "${gdr_app_name}")
+  _prompt "Runner slug" gdr_slug "${gdr_slug}" "GDR_SLUG"
+
+  _prompt "Runner labels (comma-separated)" gdr_runner_labels "self-hosted,linux,x64,${gdr_slug}" "GDR_RUNNER_LABELS"
+  _prompt "Base directory for runners" gdr_runner_base "/opt/gha-runners" "GDR_RUNNER_BASE"
+  _prompt "Base directory for applications" gdr_app_base "/opt/apps" "GDR_APP_BASE"
+  _prompt "Deployment mode (docker|systemd|custom)" gdr_deploy_mode "docker" "GDR_DEPLOY_MODE"
+
+  if [[ "${gdr_deploy_mode}" == "systemd" ]]; then
+    _prompt "Systemd service name to restart on deploy" gdr_systemd_service "${gdr_slug}.service" "GDR_SYSTEMD_SERVICE"
+  fi
+
+  _prompt_masked "GitHub Runner registration token" gdr_token "GDR_TOKEN"
+
+  local runner_dir="${gdr_runner_base}/${gdr_slug}"
+  local app_dir="${gdr_app_base}/${gdr_slug}"
+
+  if [[ -d "${runner_dir}" ]]; then
+    _warn "Runner directory '${runner_dir}' already exists. Re-running setup is idempotent."
+    local confirm_overwrite
+    _prompt "Do you want to continue?" confirm_overwrite "yes" "GDR_CONFIRM_OVERWRITE"
+    if [[ "${confirm_overwrite}" != "yes" ]]; then
+      _info "Setup aborted by user."
+      exit 0
     fi
+  fi
 
-    if [[ "${gdr_scope}" == "repo" ]]; then
-        _prompt "GitHub repository URL (e.g., https://github.com/owner/repo)" gdr_url "" "GDR_URL"
+  _info "Creating directories..."
+  mkdir -p "${runner_dir}"
+  mkdir -p "${app_dir}"
+
+  _info "Fetching GitHub Actions runner version info..."
+  local arch
+  case "$(uname -m)" in
+  x86_64) arch="x64" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *) _fatal "Unsupported architecture: $(uname -m)" ;;
+  esac
+
+  local runner_json version_tag clean_version runner_asset_url
+  if [[ -n "${FASTPULL_VERSION_OVERRIDE:-}" ]]; then
+    clean_version="${FASTPULL_VERSION_OVERRIDE#v}"
+    version_tag="v${clean_version}"
+    runner_json=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "${GITHUB_API_URL}/repos/actions/runner/releases/tags/${version_tag}") || true
+  else
+    runner_json=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "${RUNNER_RELEASES_URL}") || true
+    version_tag=$(echo "${runner_json}" | jq -r .tag_name | sed 's/^v//;t; s/.*/0/')
+    clean_version="${version_tag}"
+    version_tag="v${clean_version}"
+  fi
+  if [[ -z "${runner_json}" || "${runner_json}" == "null" ]]; then
+    _fatal "Failed to query runner release metadata from GitHub API."
+  fi
+  runner_asset_url=$(echo "${runner_json}" | jq -r ".assets[] | select(.name == \"actions-runner-linux-${arch}-${clean_version}.tar.gz\") | .browser_download_url")
+  if [[ -z "${runner_asset_url}" || "${runner_asset_url}" == "null" ]]; then
+    _fatal "Could not find runner download URL for linux-${arch} ${version_tag}."
+  fi
+
+  _info "Downloading runner from ${runner_asset_url}..."
+  local tmp_tar
+  tmp_tar=$(mktemp)
+  if ! curl -fsSL "${runner_asset_url}" -o "${tmp_tar}"; then
+    _fatal "Failed to download runner archive."
+  fi
+  if [[ -n "${FASTPULL_RUNNER_SHA256:-}" ]]; then
+    _info "Verifying runner archive integrity (sha256)..."
+    local want have
+    want="${FASTPULL_RUNNER_SHA256}"
+    if command -v sha256sum &>/dev/null; then
+      have=$(sha256sum "${tmp_tar}" | awk '{print $1}')
+    elif command -v shasum &>/dev/null; then
+      have=$(shasum -a 256 "${tmp_tar}" | awk '{print $1}')
     else
-        _prompt "GitHub organization URL (e.g., https://github.com/my-org)" gdr_url "" "GDR_URL"
+      _warn "No sha256 tool available; skipping verification."
+      have="${want}"
     fi
-
-    _prompt "Application name (for slug generation)" gdr_app_name "$(hostname)" "GDR_APP_NAME"
-    gdr_slug=$(_slugify "${gdr_app_name}")
-    _prompt "Runner slug" gdr_slug "${gdr_slug}" "GDR_SLUG"
-
-    _prompt "Runner labels (comma-separated)" gdr_runner_labels "self-hosted,linux,x64,${gdr_slug}" "GDR_RUNNER_LABELS"
-    _prompt "Base directory for runners" gdr_runner_base "/opt/gha-runners" "GDR_RUNNER_BASE"
-    _prompt "Base directory for applications" gdr_app_base "/opt/apps" "GDR_APP_BASE"
-    _prompt "Deployment mode (docker|systemd|custom)" gdr_deploy_mode "docker" "GDR_DEPLOY_MODE"
-
-    if [[ "${gdr_deploy_mode}" == "systemd" ]]; then
-        _prompt "Systemd service name to restart on deploy" gdr_systemd_service "${gdr_slug}.service" "GDR_SYSTEMD_SERVICE"
+    if [[ "${have}" != "${want}" ]]; then
+      rm -f "${tmp_tar}"
+      _fatal "Runner archive checksum mismatch. Expected ${want}, got ${have}."
     fi
+  else
+    _warn "FASTPULL_RUNNER_SHA256 not set; skipping archive verification."
+  fi
+  if ! tar -xzf "${tmp_tar}" -C "${runner_dir}"; then
+    rm -f "${tmp_tar}"
+    _fatal "Failed to extract the runner archive."
+  fi
+  rm -f "${tmp_tar}"
 
-    _prompt_masked "GitHub Runner registration token" gdr_token "GDR_TOKEN"
+  _info "Configuring the runner..."
+  cd "${runner_dir}" || _fatal "Failed to enter runner directory '${runner_dir}'"
 
-    local runner_dir="${gdr_runner_base}/${gdr_slug}"
-    local app_dir="${gdr_app_base}/${gdr_slug}"
-
-    if [[ -d "${runner_dir}" ]]; then
-        _warn "Runner directory '${runner_dir}' already exists. Re-running setup is idempotent."
-        _prompt "Do you want to continue?" confirm_overwrite "yes" "GDR_CONFIRM_OVERWRITE"
-        if [[ "${confirm_overwrite}" != "yes" ]]; then
-            _info "Setup aborted by user."
-            exit 0
-        fi
+  # Check for ephemeral support
+  local ephemeral_flag=""
+  if [[ "${FASTPULL_EPHEMERAL:-no}" == "yes" ]]; then
+    if ./config.sh --help | grep -q -- "--ephemeral"; then
+      ephemeral_flag="--ephemeral"
+      _info "Ephemeral runner mode enabled."
+    else
+      _warn "Ephemeral mode requested but not supported by this runner version. Continuing without it."
     fi
+  fi
 
-    _info "Creating directories..."
-    mkdir -p "${runner_dir}"
-    mkdir -p "${app_dir}"
-    
-    _info "Fetching latest runner version info..."
-    local arch
-    case "$(uname -m)" in
-        x86_64) arch="x64" ;; 
-        aarch64|arm64) arch="arm64" ;; 
-        *) _fatal "Unsupported architecture: $(uname -m)" ;; 
-    esac
+  if ! ./config.sh --unattended \
+    --url "${gdr_url}" \
+    --token "${gdr_token}" \
+    --name "$(hostname)-${gdr_slug}" \
+    --labels "${gdr_runner_labels}" \
+    --work "_work" \
+    ${ephemeral_flag}; then
+    _fatal "Runner configuration failed. Check your URL and token."
+  fi
 
-    local runner_asset_url
-    runner_asset_url=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "${RUNNER_RELEASES_URL}" | jq -r ".assets[] | select(.name == \"actions-runner-linux-${arch}-${FASTPULL_VERSION_OVERRIDE:-$(curl -sSL -H \"Accept: application/vnd.github.v3+json\" ${RUNNER_RELEASES_URL} | jq -r .tag_name | sed 's/v//')}.tar.gz\") | .browser_download_url")
-    if [[ -z "${runner_asset_url}" ]]; then
-        _fatal "Could not find runner download URL for linux-${arch}. Check network or GitHub status."
+  _info "Installing and starting the runner service..."
+  sudo ./svc.sh install
+  sudo ./svc.sh start
+
+  # Handle deployment mode specifics
+  if [[ "${gdr_deploy_mode}" == "systemd" ]]; then
+    _info "Configuring sudoers for systemd deployment mode..."
+    local sudoers_file="/etc/sudoers.d/gha-runner-${gdr_slug}"
+    local runner_user
+    runner_user=$(stat -c '%U' "${runner_dir}/.runner")
+    echo "${runner_user} ALL=(ALL) NOPASSWD: /bin/systemctl restart ${gdr_systemd_service}" | sudo tee "${sudoers_file}" >/dev/null
+    sudo chmod 0440 "${sudoers_file}"
+    _info "Created sudoers file at ${sudoers_file} for user ${runner_user}."
+  elif [[ "${gdr_deploy_mode}" == "docker" ]]; then
+    _info "Docker deployment mode selected."
+    if ! command -v docker &>/dev/null; then
+      _warn "Docker is not installed."
+      local install_docker
+      _prompt "Do you want to attempt to install Docker?" install_docker "yes" "GDR_INSTALL_DOCKER"
+      if [[ "${install_docker}" == "yes" ]]; then
+        _info "Installing Docker via get.docker.com script..."
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+        rm get-docker.sh
+      fi
     fi
-
-    _info "Downloading runner from ${runner_asset_url}..."
-    curl -sSL "${runner_asset_url}" | tar -xz -C "${runner_dir}"
-    if [[ $? -ne 0 ]]; then
-        _fatal "Failed to download or extract the runner."
+    local runner_user
+    runner_user=$(stat -c '%U' "${runner_dir}/.runner")
+    if ! groups "${runner_user}" | grep -q '\bdocker\b'; then
+      _info "Adding runner user '${runner_user}' to the 'docker' group..."
+      sudo usermod -aG docker "${runner_user}"
+      _warn "User '${runner_user}' was added to the 'docker' group. A system restart or re-login might be required for this to take effect."
     fi
+  fi
 
-    _info "Configuring the runner..."
-    cd "${runner_dir}"
+  # Generate sample workflow
+  _info "Generating sample workflow file..."
+  local template_file="deploy.${gdr_deploy_mode}.yml"
+  local sample_workflow_path="${app_dir}/SAMPLE_deploy.yml"
 
-    # Check for ephemeral support
-    local ephemeral_flag=""
-    if [[ "${FASTPULL_EPHEMERAL:-no}" == "yes" ]]; then
-        if ./config.sh --help | grep -q -- "--ephemeral"; then
-            ephemeral_flag="--ephemeral"
-            _info "Ephemeral runner mode enabled."
-        else
-            _warn "Ephemeral mode requested but not supported by this runner version. Continuing without it."
-        fi
-    fi
+  # This is a simplified template substitution.
+  # A real implementation might use a more robust templating function.
+  local template_content
+  template_content=$(get_template_content "${template_file}")
 
-    ./config.sh --unattended \
-        --url "${gdr_url}" \
-        --token "${gdr_token}" \
-        --name "$(hostname)-${gdr_slug}" \
-        --labels "${gdr_runner_labels}" \
-        --work "_work" \
-        ${ephemeral_flag}
+  # Replace placeholders
+  template_content="${template_content//APP_SLUG/${gdr_slug}}"
+  template_content="${template_content//MY_SERVICE/${gdr_systemd_service}}"
 
-    if [[ $? -ne 0 ]]; then
-        _fatal "Runner configuration failed. Check your URL and token."
-    fi
+  echo "${template_content}" >"${sample_workflow_path}"
 
-    _info "Installing and starting the runner service..."
-    sudo ./svc.sh install
-    sudo ./svc.sh start
-
-    # Handle deployment mode specifics
-    if [[ "${gdr_deploy_mode}" == "systemd" ]]; then
-        _info "Configuring sudoers for systemd deployment mode..."
-        local sudoers_file="/etc/sudoers.d/gha-runner-${gdr_slug}"
-        local runner_user
-        runner_user=$(stat -c '%U' "${runner_dir}/.runner")
-        echo "${runner_user} ALL=(ALL) NOPASSWD: /bin/systemctl restart ${gdr_systemd_service}" | sudo tee "${sudoers_file}" > /dev/null
-        sudo chmod 0440 "${sudoers_file}"
-        _info "Created sudoers file at ${sudoers_file} for user ${runner_user}."
-    elif [[ "${gdr_deploy_mode}" == "docker" ]]; then
-        _info "Docker deployment mode selected."
-        if ! command -v docker &>/dev/null;
-        then
-            _warn "Docker is not installed."
-            _prompt "Do you want to attempt to install Docker?" install_docker "yes" "GDR_INSTALL_DOCKER"
-            if [[ "${install_docker}" == "yes" ]]; then
-                _info "Installing Docker via get.docker.com script..."
-                curl -fsSL https://get.docker.com -o get-docker.sh
-                sudo sh get-docker.sh
-                rm get-docker.sh
-            fi
-        fi
-        local runner_user
-        runner_user=$(stat -c '%U' "${runner_dir}/.runner")
-        if ! groups "${runner_user}" | grep -q '\bdocker\b'; then
-            _info "Adding runner user '${runner_user}' to the 'docker' group..."
-            sudo usermod -aG docker "${runner_user}"
-            _warn "User '${runner_user}' was added to the 'docker' group. A system restart or re-login might be required for this to take effect."
-        fi
-    fi
-
-    # Generate sample workflow
-    _info "Generating sample workflow file..."
-    local template_file="deploy.${gdr_deploy_mode}.yml"
-    local sample_workflow_path="${app_dir}/SAMPLE_deploy.yml"
-    
-    # This is a simplified template substitution.
-    # A real implementation might use a more robust templating function.
-    local template_content
-    template_content=$(get_template_content "${template_file}")
-    
-    # Replace placeholders
-    template_content="${template_content//APP_SLUG/${gdr_slug}}"
-    template_content="${template_content//MY_SERVICE/${gdr_systemd_service}}"
-    
-    echo "${template_content}" > "${sample_workflow_path}"
-
-    _success "Setup complete for runner '${gdr_slug}'!"
-    echo
-    _info "--- NEXT STEPS ---"
-    echo -e "1. ${CLR_BOLD}Add the following labels to your repository/organization runners settings:${CLR_RESET}"
-    echo -e "   ${gdr_runner_labels}"
-    echo
-    echo -e "2. ${CLR_BOLD}Copy the sample workflow file into your project's .github/workflows/ directory:${CLR_RESET}"
-    echo -e "   ${CLR_YELLOW}File path:${CLR_RESET} ${sample_workflow_path}"
-    echo
-    echo -e "3. ${CLR_BOLD}Customize the workflow file as needed and commit it to your repository.${CLR_RESET}"
-    echo
-    echo -e "4. ${CLR_BOLD}Push a commit to trigger your first deployment!${CLR_RESET}"
+  _success "Setup complete for runner '${gdr_slug}'!"
+  echo
+  _info "--- NEXT STEPS ---"
+  echo -e "1. ${CLR_BOLD}Add the following labels to your repository/organization runners settings:${CLR_RESET}"
+  echo -e "   ${gdr_runner_labels}"
+  echo
+  echo -e "2. ${CLR_BOLD}Copy the sample workflow file into your project's .github/workflows/ directory:${CLR_RESET}"
+  echo -e "   ${CLR_YELLOW}File path:${CLR_RESET} ${sample_workflow_path}"
+  echo
+  echo -e "3. ${CLR_BOLD}Customize the workflow file as needed and commit it to your repository.${CLR_RESET}"
+  echo
+  echo -e "4. ${CLR_BOLD}Push a commit to trigger your first deployment!${CLR_RESET}"
 }
 
 get_template_content() {
-    local template_name="$1"
-    # In a real script, this would read from the /usr/share/fastpull/templates location
-    # For this bootstrap, we'll embed them.
-    case "${template_name}" in
-        "deploy.docker.compose.yml")
-            cat <<'TPL'
+  local template_name="$1"
+  # Templates are embedded for now. May move to /usr/share/fastpull/templates in the future.
+  case "${template_name}" in
+  "deploy.docker.compose.yml")
+    cat <<'TPL'
 # .github/workflows/deploy.yml
 # Sample workflow for Docker Compose deployments via fastpull
 name: Deploy to VM
@@ -362,9 +394,9 @@ jobs:
           
           echo "--> Deployment complete!"
 TPL
-            ;;
-        "deploy.systemd.yml")
-            cat <<'TPL'
+    ;;
+  "deploy.systemd.yml")
+    cat <<'TPL'
 # .github/workflows/deploy.yml
 # Sample workflow for systemd deployments via fastpull
 name: Deploy to VM
@@ -403,9 +435,9 @@ jobs:
           
           echo "--> Deployment complete!"
 TPL
-            ;;
-        "deploy.custom.yml")
-            cat <<'TPL'
+    ;;
+  "deploy.custom.yml")
+    cat <<'TPL'
 # .github/workflows/deploy.yml
 # Sample workflow for custom command deployments via fastpull
 name: Deploy to VM
@@ -448,227 +480,361 @@ jobs:
           
           echo "--> Deployment complete!"
 TPL
-            ;;
-    esac
+    ;;
+  esac
+}
+
+find_runner_service() {
+  local slug="$1"
+  local guess="actions.runner.${slug}.service"
+  if command -v systemctl &>/dev/null; then
+    if systemctl list-units --type=service --all | awk '{print $1}' | grep -qx "${guess}"; then
+      echo "${guess}"
+      return 0
+    fi
+    local alt
+    alt=$(systemctl list-units --type=service --all | awk '{print $1}' | grep -E '^actions\.runner\..*\.service$' | grep -E "\.${slug}(\.|$)" | head -n1)
+    if [[ -n "${alt}" ]]; then
+      echo "${alt}"
+      return 0
+    fi
+  fi
+  echo "${guess}"
 }
 
 _cmd_list() {
-    local runner_base="${GDR_RUNNER_BASE:-/opt/gha-runners}"
-    local app_base="${GDR_APP_BASE:-/opt/apps}"
+  _check_deps "jq"
+  local runner_base="${GDR_RUNNER_BASE:-/opt/gha-runners}"
 
-    if [[ ! -d "${runner_base}" ]] || [[ -z "$(ls -A "${runner_base}")" ]]; then
-        _info "No runners found in ${runner_base}."
-        return
-    fi
+  if [[ ! -d "${runner_base}" ]] || [[ -z "$(ls -A "${runner_base}")" ]]; then
+    _info "No runners found in ${runner_base}."
+    return
+  fi
 
-    printf "%-"20s | %-5s | %-40s | %-15s\n" "SLUG" "SCOPE" "LABELS" "SERVICE STATE"
-    echo "--------------------------------------------------------------------------------------------------"
+  printf "%-20s | %-5s | %-40s | %-15s\n" "SLUG" "SCOPE" "LABELS" "SERVICE STATE"
+  echo "--------------------------------------------------------------------------------------------------"
 
-    for slug_dir in "${runner_base}"/*;
-    do
-        if [[ -d "${slug_dir}" ]]; then
-            local slug
-            slug=$(basename "${slug_dir}")
-            local runner_file="${slug_dir}/.runner"
-            local labels="-"
-            local scope="-"
-            if [[ -f "${runner_file}" ]]; then
-                labels=$(jq -r '.labels | map(.name) | join(",")' "${runner_file}")
-                scope=$(jq -r 'if .ownerName then "org" else "repo" end' "${runner_file}")
-            fi
-            
-            local service_state="-"
-            if command -v systemctl &> /dev/null;
-            then
-                if systemctl is-active --quiet "actions.runner.${slug}.service"; then
-                    service_state="${CLR_GREEN}active${CLR_RESET}"
-                elif systemctl is-failed --quiet "actions.runner.${slug}.service"; then
-                    service_state="${CLR_RED}failed${CLR_RESET}"
-                else
-                    service_state="inactive"
-                fi
-            fi
+  for slug_dir in "${runner_base}"/*; do
+    if [[ -d "${slug_dir}" ]]; then
+      local slug
+      slug=$(basename "${slug_dir}")
+      local runner_file="${slug_dir}/.runner"
+      local labels="-"
+      local scope="-"
+      if [[ -f "${runner_file}" ]]; then
+        labels=$(jq -r '.labels | map(.name) | join(",")' "${runner_file}")
+        scope=$(jq -r 'if .ownerName then "org" else "repo" end' "${runner_file}")
+      fi
 
-            printf "%-"20s | %-5s | %-40s | %-15b\n" "${slug}" "${scope}" "${labels}" "${service_state}"
+      local service_state="-"
+      local service_name
+      service_name=$(find_runner_service "${slug}")
+      if command -v systemctl &>/dev/null; then
+        if systemctl is-active --quiet "${service_name}"; then
+          service_state="active"
+        elif systemctl is-failed --quiet "${service_name}"; then
+          service_state="failed"
+        else
+          service_state="inactive"
         fi
-    done
+      fi
+
+      printf "%-20s | %-5s | %-40s | %-15s\n" "${slug}" "${scope}" "${labels}" "${service_state}"
+    fi
+  done
 }
 
 _cmd_status() {
-    _check_deps "systemctl"
-    local slug="$1"
-    [[ -z "${slug}" ]] && _fatal "Usage: fastpull status <slug>"
+  _check_deps "systemctl"
+  local slug="$1"
+  [[ -z "${slug}" ]] && _fatal "Usage: fastpull status <slug>"
 
-    local runner_dir="${GDR_RUNNER_BASE:-/opt/gha-runners}/${slug}"
-    [[ ! -d "${runner_dir}" ]] && _fatal "Runner with slug '${slug}' not found."
+  local runner_dir="${GDR_RUNNER_BASE:-/opt/gha-runners}/${slug}"
+  [[ ! -d "${runner_dir}" ]] && _fatal "Runner with slug '${slug}' not found."
 
-    _info "Status for runner: ${CLR_BOLD}${slug}${CLR_RESET}"
-    echo "-------------------------------------"
-    
-    local service_name="actions.runner.${slug}.service"
-    echo -n "Service Status: "
-    if systemctl is-active --quiet "${service_name}"; then
-        echo -e "${CLR_GREEN}Active${CLR_RESET}"
-    elif systemctl is-failed --quiet "${service_name}"; then
-        echo -e "${CLR_RED}Failed${CLR_RESET}"
-    else
-        echo "Inactive"
+  _info "Status for runner: ${CLR_BOLD}${slug}${CLR_RESET}"
+  echo "-------------------------------------"
+
+  local service_name
+  service_name=$(find_runner_service "${slug}")
+  echo -n "Service Status: "
+  if systemctl is-active --quiet "${service_name}"; then
+    echo -e "${CLR_GREEN}Active${CLR_RESET}"
+  elif systemctl is-failed --quiet "${service_name}"; then
+    echo -e "${CLR_RED}Failed${CLR_RESET}"
+  else
+    echo "Inactive"
+  fi
+
+  echo "Runner Directory: ${runner_dir}"
+  echo "Application Directory: ${GDR_APP_BASE:-/opt/apps}/${slug}"
+
+  if [[ -f "${runner_dir}/.runner" ]]; then
+    echo "Labels: $(jq -r '.labels | map(.name) | join(",")' "${runner_dir}/.runner")"
+  fi
+
+  echo
+  _info "Last 10 lines of service log:"
+  if ! journalctl -u "${service_name}" -n 10 --no-pager; then
+    _warn "Failed to read journal. Trying with sudo..."
+    if ! sudo journalctl -u "${service_name}" -n 10 --no-pager; then
+      _warn "Unable to read service logs. Ensure you have permission to read the journal."
     fi
-
-    echo "Runner Directory: ${runner_dir}"
-    echo "Application Directory: ${GDR_APP_BASE:-/opt/apps}/${slug}"
-
-    if [[ -f "${runner_dir}/.runner" ]]; then
-        echo "Labels: $(jq -r '.labels | map(.name) | join(",")' "${runner_dir}/.runner")"
-    fi
-    
-    echo
-    _info "Last 10 lines of service log:"
-    journalctl -u "${service_name}" -n 10 --no-pager
+  fi
 }
 
 _cmd_uninstall() {
-    _check_root
-    local slug="$1"
-    [[ -z "${slug}" ]] && _fatal "Usage: fastpull uninstall <slug>"
+  _check_root
+  local slug="$1"
+  [[ -z "${slug}" ]] && _fatal "Usage: fastpull uninstall <slug>"
 
-    local runner_dir="${GDR_RUNNER_BASE:-/opt/gha-runners}/${slug}"
-    [[ ! -d "${runner_dir}" ]] && _fatal "Runner with slug '${slug}' not found."
+  local runner_dir="${GDR_RUNNER_BASE:-/opt/gha-runners}/${slug}"
+  [[ ! -d "${runner_dir}" ]] && _fatal "Runner with slug '${slug}' not found."
 
-    _warn "This will stop the service and unregister the runner from GitHub."
-    _prompt "Are you sure you want to uninstall runner '${slug}'?" confirm "no" "GDR_CONFIRM"
-    [[ "${confirm}" != "yes" ]] && _info "Uninstall aborted." && exit 0
+  _warn "This will stop the service and unregister the runner from GitHub."
+  local confirm
+  _prompt "Are you sure you want to uninstall runner '${slug}'?" confirm "no" "GDR_CONFIRM"
+  [[ "${confirm}" != "yes" ]] && _info "Uninstall aborted." && exit 0
 
-    cd "${runner_dir}"
+  cd "${runner_dir}" || _fatal "Failed to enter runner directory '${runner_dir}'"
 
-    _info "Stopping and uninstalling service..."
-    sudo ./svc.sh stop
-    sudo ./svc.sh uninstall
+  _info "Stopping and uninstalling service..."
+  sudo ./svc.sh stop
+  sudo ./svc.sh uninstall
 
-    _info "Removing runner configuration from GitHub..."
-    # We need the token to do this cleanly. If not available, it will fail but we proceed.
-    local token
-    _prompt_masked "Enter a valid GitHub PAT or registration token to remove the runner" token "GDR_TOKEN"
-    
-    ./config.sh remove --unattended --token "${token}" || _warn "Failed to remove runner from GitHub. You may need to remove it manually from the UI. This can happen if the token is expired."
+  _info "Removing runner configuration from GitHub..."
+  # We need the token to do this cleanly. If not available, it will fail but we proceed.
+  local token
+  _prompt_masked "Enter a valid GitHub PAT or registration token to remove the runner" token "GDR_TOKEN"
 
-    _info "Removing runner directory: ${runner_dir}"
-    sudo rm -rf "${runner_dir}"
+  ./config.sh remove --unattended --token "${token}" || _warn "Failed to remove runner from GitHub. You may need to remove it manually from the UI. This can happen if the token is expired."
 
-    local sudoers_file="/etc/sudoers.d/gha-runner-${slug}"
-    if [[ -f "${sudoers_file}" ]]; then
-        _info "Removing sudoers file: ${sudoers_file}"
-        sudo rm -f "${sudoers_file}"
+  _info "Removing runner directory: ${runner_dir}"
+  sudo rm -rf "${runner_dir}"
+
+  local sudoers_file="/etc/sudoers.d/gha-runner-${slug}"
+  if [[ -f "${sudoers_file}" ]]; then
+    _info "Removing sudoers file: ${sudoers_file}"
+    sudo rm -f "${sudoers_file}"
+  fi
+
+  _success "Runner '${slug}' has been uninstalled."
+
+  local app_dir="${GDR_APP_BASE:-/opt/apps}/${slug}"
+  if [[ -d "${app_dir}" ]]; then
+    local confirm_app_del
+    _prompt "Do you also want to remove the application directory '${app_dir}'?" confirm_app_del "no" "GDR_CONFIRM_APP_DELETE"
+    if [[ "${confirm_app_del}" == "yes" ]]; then
+      sudo rm -rf "${app_dir}"
+      _success "Application directory removed."
     fi
-
-    _success "Runner '${slug}' has been uninstalled."
-    
-    local app_dir="${GDR_APP_BASE:-/opt/apps}/${slug}"
-    if [[ -d "${app_dir}" ]]; then
-        _prompt "Do you also want to remove the application directory '${app_dir}'?" confirm_app_del "no" "GDR_CONFIRM_APP_DELETE"
-        if [[ "${confirm_app_del}" == "yes" ]]; then
-            sudo rm -rf "${app_dir}"
-            _success "Application directory removed."
-        fi
-    fi
+  fi
 }
 
 _cmd_destroy() {
-    _warn "The 'destroy' command is an alias for 'uninstall' with aggressive cleanup."
-    _cmd_uninstall "$@"
+  _warn "The 'destroy' command is an alias for 'uninstall' with aggressive cleanup."
+  _cmd_uninstall "$@"
 }
 
 _cmd_upgrade() {
-    _check_root
-    _fatal "Upgrade command is not yet implemented. See ROADMAP.md."
+  _check_root
+  _check_deps "curl" "jq" "tar" "rsync"
+
+  local target_slug="$1"
+  local runner_base="${GDR_RUNNER_BASE:-/opt/gha-runners}"
+
+  _info "Starting runner upgrade..."
+  local slugs=()
+  if [[ -n "${target_slug}" ]]; then
+    slugs+=("${target_slug}")
+  else
+    if [[ -d "${runner_base}" ]]; then
+      for d in "${runner_base}"/*; do
+        [[ -d "${d}" ]] && slugs+=("$(basename "${d}")")
+      done
+    fi
+  fi
+
+  [[ ${#slugs[@]} -eq 0 ]] && _fatal "No runners found to upgrade."
+
+  local arch
+  case "$(uname -m)" in
+  x86_64) arch="x64" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *) _fatal "Unsupported architecture: $(uname -m)" ;;
+  esac
+
+  # Resolve release JSON once
+  _info "Fetching GitHub Actions runner release metadata..."
+  local runner_json version_tag clean_version
+  if [[ -n "${FASTPULL_VERSION_OVERRIDE:-}" ]]; then
+    clean_version="${FASTPULL_VERSION_OVERRIDE#v}"
+    version_tag="v${clean_version}"
+    runner_json=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "${GITHUB_API_URL}/repos/actions/runner/releases/tags/${version_tag}") || true
+  else
+    runner_json=$(curl -sSL -H "Accept: application/vnd.github.v3+json" "${RUNNER_RELEASES_URL}") || true
+    version_tag=$(echo "${runner_json}" | jq -r .tag_name | sed 's/^v//;t; s/.*/0/')
+    clean_version="${version_tag}"
+    version_tag="v${clean_version}"
+  fi
+  [[ -z "${runner_json}" || "${runner_json}" == "null" ]] && _fatal "Failed to query runner release metadata from GitHub API."
+
+  local asset_url
+  asset_url=$(echo "${runner_json}" | jq -r ".assets[] | select(.name == \"actions-runner-linux-${arch}-${clean_version}.tar.gz\") | .browser_download_url")
+  [[ -z "${asset_url}" || "${asset_url}" == "null" ]] && _fatal "Runner asset for linux-${arch} ${version_tag} not found."
+
+  for slug in "${slugs[@]}"; do
+    local dir="${runner_base}/${slug}"
+    [[ ! -d "${dir}" ]] && _warn "Skipping '${slug}': runner directory not found." && continue
+
+    _info "Upgrading runner '${slug}' in ${dir} to ${version_tag}..."
+
+    local service_name
+    service_name=$(find_runner_service "${slug}")
+
+    pushd "${dir}" >/dev/null || _fatal "Failed to enter ${dir}"
+
+    _info "Stopping service ${service_name}..."
+    sudo ./svc.sh stop || _warn "Stopping service failed; continuing."
+
+        local backup
+        backup="${dir}_backup_$(date +%Y%m%d%H%M%S).tar.gz"
+    _info "Creating backup at ${backup}..."
+    tar -czf "${backup}" . || _warn "Backup failed. Proceeding without backup."
+
+    local tmp_tar tmp_dir
+    tmp_tar=$(mktemp)
+    tmp_dir=$(mktemp -d)
+    _info "Downloading runner asset..."
+    if ! curl -fsSL "${asset_url}" -o "${tmp_tar}"; then
+      rm -f "${tmp_tar}"
+      _fatal "Download failed for runner asset."
+    fi
+    if [[ -n "${FASTPULL_RUNNER_SHA256:-}" ]]; then
+      _info "Verifying runner archive (sha256)..."
+      local want have
+      want="${FASTPULL_RUNNER_SHA256}"
+      if command -v sha256sum &>/dev/null; then
+        have=$(sha256sum "${tmp_tar}" | awk '{print $1}')
+      elif command -v shasum &>/dev/null; then
+        have=$(shasum -a 256 "${tmp_tar}" | awk '{print $1}')
+      else
+        _warn "No sha256 tool available; skipping verification."
+        have="${want}"
+      fi
+      if [[ "${have}" != "${want}" ]]; then
+        rm -f "${tmp_tar}"
+        _fatal "Checksum mismatch for runner archive."
+      fi
+    fi
+    if ! tar -xzf "${tmp_tar}" -C "${tmp_dir}"; then
+      rm -rf "${tmp_tar}" "${tmp_dir}"
+      _fatal "Extracting updated runner failed."
+    fi
+    rm -f "${tmp_tar}"
+
+    _info "Syncing new runner files (preserving credentials and work)..."
+    rsync -a --delete \
+      --exclude='.runner' \
+      --exclude='.credentials' \
+      --exclude='.service' \
+      --exclude='_work' \
+      "${tmp_dir}/" "${dir}/"
+    local rs
+    rs=$?
+    rm -rf "${tmp_dir}"
+    [[ ${rs} -ne 0 ]] && _fatal "File sync failed for '${slug}'."
+
+    _info "Starting service ${service_name}..."
+    sudo ./svc.sh start || _fatal "Failed to start service for '${slug}'. Manual intervention required."
+
+    _success "Runner '${slug}' upgraded to ${version_tag}."
+    popd >/dev/null || true
+  done
 }
 
 _cmd_doctor() {
-    _info "Running fastpull diagnostics..."
-    echo "-------------------------------------"
-    
-    local has_error=0
-    
-    # Check OS
-    if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
-        _info "OS: ${PRETTY_NAME}"
-        if [[ "${ID}" != "ubuntu" && "${ID}" != "debian" ]]; then
-            _warn "OS is not officially supported. You may encounter issues."
-        fi
-    else
-        _warn "Could not determine OS version."
+  _info "Running fastpull diagnostics..."
+  echo "-------------------------------------"
+
+  local has_error=0
+
+  # Check OS
+  if [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    _info "OS: ${PRETTY_NAME}"
+    if [[ "${ID}" != "ubuntu" && "${ID}" != "debian" ]]; then
+      _warn "OS is not officially supported. You may encounter issues."
     fi
+  else
+    _warn "Could not determine OS version."
+  fi
 
-    # Check deps
-    for dep in "curl" "jq" "tar" "systemctl" "rsync"; do
-        if command -v "${dep}" &>/dev/null;
-        then
-            _info "Dependency check for '${dep}': ${CLR_GREEN}OK${CLR_RESET}"
-        else
-            _error "Dependency check for '${dep}': ${CLR_RED}Missing${CLR_RESET}"
-            has_error=1
-        fi
-    done
-
-    # Check Docker
-    if command -v docker &>/dev/null;
-    then
-        _info "Docker: Installed"
-        if ! docker ps &>/dev/null;
-        then
-            _warn "Docker is installed, but the daemon doesn't seem to be running or you lack permissions."
-        fi
+  # Check deps
+  for dep in "curl" "jq" "tar" "systemctl" "rsync"; do
+    if command -v "${dep}" &>/dev/null; then
+      _info "Dependency check for '${dep}': ${CLR_GREEN}OK${CLR_RESET}"
     else
-        _info "Docker: Not installed"
+      _error "Dependency check for '${dep}': ${CLR_RED}Missing${CLR_RESET}"
+      has_error=1
     fi
+  done
 
-    # Check network
-    _info "Network: Checking GitHub API connectivity..."
-    if curl -sSL -o /dev/null "${GITHUB_API_URL}/zen"; then
-        _info "GitHub API reachability: ${CLR_GREEN}OK${CLR_RESET}"
+  # Check Docker
+  if command -v docker &>/dev/null; then
+    _info "Docker: Installed"
+    if ! docker ps &>/dev/null; then
+      _warn "Docker is installed, but the daemon doesn't seem to be running or you lack permissions."
+    fi
+  else
+    _info "Docker: Not installed"
+  fi
+
+  # Check network
+  _info "Network: Checking GitHub API connectivity..."
+  if curl -sSL -o /dev/null "${GITHUB_API_URL}/zen"; then
+    _info "GitHub API reachability: ${CLR_GREEN}OK${CLR_RESET}"
+  else
+    _error "GitHub API reachability: ${CLR_RED}Failed${CLR_RESET}"
+    has_error=1
+  fi
+
+  # Check permissions
+  for dir in "/opt" "/usr/local/bin"; do
+    if [[ -w "${dir}" ]]; then
+      _info "Permissions: Write access to ${dir}: ${CLR_GREEN}OK${CLR_RESET}"
     else
-        _error "GitHub API reachability: ${CLR_RED}Failed${CLR_RESET}"
-        has_error=1
+      _warn "Permissions: No direct write access to ${dir}. 'sudo' will be required."
     fi
+  done
 
-    # Check permissions
-    for dir in "/opt" "/usr/local/bin"; do
-        if [[ -w "${dir}" ]]; then
-            _info "Permissions: Write access to ${dir}: ${CLR_GREEN}OK${CLR_RESET}"
-        else
-            _warn "Permissions: No direct write access to ${dir}. 'sudo' will be required."
-        fi
-    done
-
-    echo "-------------------------------------"
-    if [[ ${has_error} -eq 1 ]]; then
-        _error "Doctor found one or more critical issues."
-    else
-        _success "Doctor finished. System appears ready for fastpull."
-    fi
+  echo "-------------------------------------"
+  if [[ ${has_error} -eq 1 ]]; then
+    _error "Doctor found one or more critical issues."
+  else
+    _success "Doctor finished. System appears ready for fastpull."
+  fi
 }
-
 
 # --- Main Execution Logic ---
 main() {
-    setup_colors
-    local cmd="$1"
-    shift || true
+  setup_colors
+  local cmd="$1"
+  shift || true
 
-    case "${cmd}" in
-        setup|list|status|uninstall|destroy|upgrade|doctor|version)
-            _cmd_"${cmd}" "$@"
-            ;;
-        help|--help|-h|"")
-            _cmd_help
-            ;;
-        *)
-            _error "Unknown command: ${cmd}"
-            _cmd_help
-            exit 1
-            ;;
-    esac
+  case "${cmd}" in
+  setup | list | status | uninstall | destroy | upgrade | doctor | version)
+    _cmd_"${cmd}" "$@"
+    ;;
+  help | --help | -h | "")
+    _cmd_help
+    ;;
+  *)
+    _error "Unknown command: ${cmd}"
+    _cmd_help
+    exit 1
+    ;;
+  esac
 }
 
 # Let's go

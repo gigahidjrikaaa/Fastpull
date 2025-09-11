@@ -5,7 +5,7 @@
   </a> -->
 </p>
 
-<h1 align="center">Fastpull 🚀</h1>
+<h1 align="center">Fastpull</h1>
 
 <p align="center">
   <strong>Fast, zero-dependency push-to-deploy for plain VMs via GitHub Actions self-hosted runners.</strong>
@@ -45,7 +45,7 @@ Fastpull is a single-file Bash CLI that automates the setup and management of Gi
 - **Secure by Default**: Uses short-lived registration tokens, creates minimal sudoers permissions only when needed, and never logs secrets.
 - **Idempotent Setup**: Rerunning `fastpull setup` is safe and predictable.
 - **Flexible Deployments**: Natively supports Docker Compose, systemd services, or your own custom deployment scripts.
-- **Simple Management**: Easy commands to list, check status, upgrade, and destroy runners.
+- **Simple Management**: Easy commands to list, check status, and destroy runners.
 
 --- 
 
@@ -55,7 +55,7 @@ This is a storyboard for a terminal recording that shows the end-to-end flow.
 
 1.  **Install `fastpull` with a single curl command.**
     ```sh
-    curl -sSL https://.../install.sh | bash
+    curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
     ```
 2.  **Run the interactive setup.**
     ```bash
@@ -128,6 +128,31 @@ curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts
 | `fastpull doctor`      | Run diagnostics to check system compatibility.               |
 | `fastpull help`        | Show the help message.                                       |
 
+Note: An `upgrade` command is planned (see ROADMAP) but not yet available.
+
+## Environment Variables
+
+Fastpull supports non-interactive setup and customization via environment variables:
+
+- `GDR_SCOPE`: repo or org. Default: `repo`.
+- `GDR_URL`: Repository or organization URL (e.g., `https://github.com/owner/repo`).
+- `GDR_APP_NAME`: App display name used to derive the slug. Default: hostname.
+- `GDR_SLUG`: Override the derived slug. Default: slugified `GDR_APP_NAME`.
+- `GDR_RUNNER_LABELS`: Comma-separated labels (e.g., `self-hosted,linux,x64,my-app`).
+- `GDR_RUNNER_BASE`: Base dir for runners. Default: `/opt/gha-runners`.
+- `GDR_APP_BASE`: Base dir for application files. Default: `/opt/apps`.
+- `GDR_DEPLOY_MODE`: `docker`, `systemd`, or `custom`. Default: `docker`.
+- `GDR_SYSTEMD_SERVICE`: Service name to restart (systemd mode). Default: `<slug>.service`.
+- `GDR_TOKEN`: GitHub Actions runner registration token.
+- `GDR_INSTALL_DOCKER`: `yes`/`no` to auto-install Docker if missing. Default: `yes`.
+- `FASTPULL_NONINTERACTIVE`: `yes` to suppress prompts and use defaults/env.
+- `FASTPULL_EPHEMERAL`: `yes` to request ephemeral runner mode if supported.
+- `FASTPULL_COLOR`: `auto` (default) or `never` to disable colors.
+- `FASTPULL_VERSION_OVERRIDE`: Override runner version (e.g., `2.300.0`).
+- `FASTPULL_RUNNER_SHA256`: SHA256 to verify the downloaded runner archive.
+
+These are demonstrated in `docs/cloud-init/*.yml` for various cloud providers.
+
 ## Security
 
 - **Runner Tokens**: `fastpull` uses `read -s` to accept the GitHub registration token, so it is never displayed on screen or stored in your shell history. The token is used once for registration and is not stored by `fastpull`.
@@ -150,3 +175,4 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+

@@ -25,6 +25,9 @@ jobs:
           mkdir -p staging/DEBIAN
           mkdir -p staging/usr/local/bin
           cp packaging/deb/DEBIAN/* staging/DEBIAN/
+          # Sync control version to tag (strip leading 'v')
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^Version: .*/Version: ${VERSION}/" staging/DEBIAN/control
           cp bin/fastpull staging/usr/local/bin/
           dpkg-deb --build staging fastpull_${{ github.ref_name }}_all.deb
 

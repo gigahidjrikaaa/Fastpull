@@ -2,6 +2,8 @@
 *.log
 *.swp
 .DS_Store
+/.tools/
+__tmp.txt
 
 # Build artifacts
 /staging

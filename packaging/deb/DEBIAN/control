@@ -1,5 +1,5 @@
 Package: fastpull
-Version: 0.2.0
+Version: 0.2.1
 Architecture: all
 Maintainer: GIga Hidjrika Aura Adkhy <gigahidjrikaaa@gmail.com>
 Description: A zero-dependency CLI for GitHub Actions push-to-deploy runners.

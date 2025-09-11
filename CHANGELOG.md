@@ -7,10 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Your new feature here.
+### Planned
+- TBD
 
-## [0.2.0] - YYYY-MM-DD
+## [0.2.1] - 2025-09-11
+
+### Added
+- Minimal safe `upgrade` command with backup, checksum (optional), and service restart.
+- Environment variable reference in README.
+- Issue templates for bugs and feature requests.
+
+### Changed
+- Robust runner version resolution and single API call pattern.
+- Integrity verification for runner archive via `FASTPULL_RUNNER_SHA256`.
+- `list` formatting and service detection improved; added `jq` dep check.
+- `status` logs: try sudo on failure.
+# Changelog
+- Author metadata and docs polish.
+
+## [0.2.0] - 2025-09-11
 
 ### Added
 - Initial release of `fastpull`.
