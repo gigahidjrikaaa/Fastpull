@@ -659,7 +659,7 @@ _cmd_destroy() {
 
 _cmd_upgrade() {
     _check_root
-    _fatal "Upgrade command is not yet implemented. See ROADMAP.md."
+    _fatal "Upgrade command is not yet implemented. See docs/ROADMAP.md."
 }
 
 _cmd_doctor() {
@@ -1677,8 +1677,9 @@ Please follow a conventional commit message format.
 Example: `feat: add --json output to list command`
 EOF
 
-echo "==> Creating SECURITY.md..."
-cat <<'EOF' > fastpull/SECURITY.md
+echo "==> Creating docs/SECURITY.md..."
+mkdir -p fastpull/docs
+cat <<'EOF' > fastpull/docs/SECURITY.md
 # Security Policy
 
 The security of Fastpull is a top priority. We appreciate your efforts to responsibly disclose your findings.
@@ -1704,8 +1705,8 @@ We will do our best to respond to your report within 48 hours.
 - **Public Repositories**: **Do not use self-hosted runners on public repositories.** Malicious code in a pull request could execute on your runner and compromise your machine.
 EOF
 
-echo "==> Creating ROADMAP.md..."
-cat <<'EOF' > fastpull/ROADMAP.md
+echo "==> Creating docs/ROADMAP.md..."
+cat <<'EOF' > fastpull/docs/ROADMAP.md
 # Fastpull Roadmap
 
 This document outlines potential future features and improvements for Fastpull.
@@ -1943,4 +1944,3 @@ set_permissions() {
 
 # --- Run the main function ---
 main
-

@@ -128,7 +128,7 @@ curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts
 | `fastpull doctor`      | Run diagnostics to check system compatibility.               |
 | `fastpull help`        | Show the help message.                                       |
 
-Note: An `upgrade` command is planned (see ROADMAP) but not yet available.
+See `docs/ROADMAP.md` for planned improvements.
 
 ## Environment Variables
 
@@ -175,4 +175,3 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
