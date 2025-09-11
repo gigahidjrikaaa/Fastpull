@@ -130,6 +130,8 @@ curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts
 
 See `docs/ROADMAP.md` for planned improvements.
 
+Tip: Use `fastpull --help` for top-level help, or `fastpull <command> --help` for command-specific usage.
+
 ## Environment Variables
 
 Fastpull supports non-interactive setup and customization via environment variables:

@@ -122,7 +122,7 @@ _slugify() {
 # --- Main Command Functions ---
 
 _cmd_help() {
-  cat <<USAGE
+    cat <<USAGE
 ${CLR_BOLD}fastpull${CLR_RESET} ${FASTPULL_VERSION}
 A zero-dependency CLI for GitHub Actions push-to-deploy runners.
 
@@ -145,6 +145,8 @@ ${CLR_BOLD}ENVIRONMENT VARIABLES:${CLR_RESET}
     Example: GDR_SCOPE, GDR_URL, GDR_TOKEN, etc.
 
 For more details, see the documentation at: https://github.com/gigahidjrikaaa/Fastpull
+
+Tip: Use "fastpull <command> --help" for command-specific help.
 USAGE
 }
 
@@ -153,7 +155,20 @@ _cmd_version() {
 }
 
 _cmd_setup() {
-  _check_root
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull setup [--help]
+
+Interactively set up a new GitHub Actions self-hosted runner on this VM.
+
+Environment overrides (non-interactive): GDR_SCOPE, GDR_URL, GDR_APP_NAME,
+GDR_SLUG, GDR_RUNNER_LABELS, GDR_RUNNER_BASE, GDR_APP_BASE, GDR_DEPLOY_MODE,
+GDR_SYSTEMD_SERVICE, GDR_TOKEN, GDR_INSTALL_DOCKER, FASTPULL_NONINTERACTIVE.
+USAGE
+        return 0
+    fi
+
+    _check_root
   _check_deps "curl" "jq" "tar"
 
   _info "Starting interactive GitHub Actions runner setup..."
@@ -503,7 +518,15 @@ find_runner_service() {
 }
 
 _cmd_list() {
-  _check_deps "jq"
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull list
+
+List all runners managed by fastpull, with scope, labels, and service state.
+USAGE
+        return 0
+    fi
+    _check_deps "jq"
   local runner_base="${GDR_RUNNER_BASE:-/opt/gha-runners}"
 
   if [[ ! -d "${runner_base}" ]] || [[ -z "$(ls -A "${runner_base}")" ]]; then
@@ -545,7 +568,15 @@ _cmd_list() {
 }
 
 _cmd_status() {
-  _check_deps "systemctl"
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull status <slug>
+
+Show the service status and last logs for a runner identified by <slug>.
+USAGE
+        return 0
+    fi
+    _check_deps "systemctl"
   local slug="$1"
   [[ -z "${slug}" ]] && _fatal "Usage: fastpull status <slug>"
 
@@ -584,7 +615,15 @@ _cmd_status() {
 }
 
 _cmd_uninstall() {
-  _check_root
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull uninstall <slug>
+
+Stop the runner service, unregister from GitHub, and remove its files.
+USAGE
+        return 0
+    fi
+    _check_root
   local slug="$1"
   [[ -z "${slug}" ]] && _fatal "Usage: fastpull uninstall <slug>"
 
@@ -632,13 +671,30 @@ _cmd_uninstall() {
 }
 
 _cmd_destroy() {
-  _warn "The 'destroy' command is an alias for 'uninstall' with aggressive cleanup."
-  _cmd_uninstall "$@"
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull destroy <slug>
+
+Alias for 'uninstall' with aggressive cleanup.
+USAGE
+        return 0
+    fi
+    _warn "The 'destroy' command is an alias for 'uninstall' with aggressive cleanup."
+    _cmd_uninstall "$@"
 }
 
 _cmd_upgrade() {
-  _check_root
-  _check_deps "curl" "jq" "tar" "rsync"
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull upgrade [<slug>]
+
+Upgrade one or all runners to the latest (or overridden) runner version.
+Set FASTPULL_VERSION_OVERRIDE and FASTPULL_RUNNER_SHA256 to pin/verify.
+USAGE
+        return 0
+    fi
+    _check_root
+    _check_deps "curl" "jq" "tar" "rsync"
 
   local target_slug="$1"
   local runner_base="${GDR_RUNNER_BASE:-/opt/gha-runners}"
@@ -754,7 +810,15 @@ _cmd_upgrade() {
 }
 
 _cmd_doctor() {
-  _info "Running fastpull diagnostics..."
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull doctor
+
+Run diagnostics to check system compatibility and dependencies.
+USAGE
+        return 0
+    fi
+    _info "Running fastpull diagnostics..."
   echo "-------------------------------------"
 
   local has_error=0
