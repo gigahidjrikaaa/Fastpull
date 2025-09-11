@@ -131,6 +131,7 @@ ${CLR_BOLD}USAGE:${CLR_RESET}
 
 ${CLR_BOLD}COMMANDS:${CLR_RESET}
     ${CLR_GREEN}setup${CLR_RESET}              Interactively set up a new self-hosted runner.
+    ${CLR_GREEN}activate${CLR_RESET}           Set up a runner for the current Git repo.
     ${CLR_GREEN}list${CLR_RESET}               List all runners managed by fastpull.
     ${CLR_GREEN}status <slug>${CLR_RESET}      Show the status of a specific runner.
     ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest (or specified) version.
@@ -148,6 +149,152 @@ For more details, see the documentation at: https://github.com/gigahidjrikaaa/Fa
 
 Tip: Use "fastpull <command> --help" for command-specific help.
 USAGE
+}
+
+# Convert a git remote URL (https/ssh) into an https URL without .git
+_normalize_repo_url() {
+  local raw="$1"
+  if [[ -z "$raw" ]]; then
+    echo ""
+    return 0
+  fi
+  if [[ "$raw" =~ ^git@([^:]+):([^/]+)/([^/]+)\.git$ ]]; then
+    echo "https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"
+    return 0
+  fi
+  if [[ "$raw" =~ ^git@([^:]+):(.+) ]]; then
+    echo "https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]%.git}"
+    return 0
+  fi
+  if [[ "$raw" =~ ^https?:// ]]; then
+    echo "${raw%.git}"
+    return 0
+  fi
+  echo "${raw%.git}"
+}
+
+_cmd_activate() {
+  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    cat <<'USAGE'
+Usage: fastpull activate [--help]
+
+From inside an existing Git repository on your VM, set up a self-hosted
+runner for this repo with minimal prompts, then generate a ready-to-use
+deployment workflow (.github/workflows/deploy.yml).
+
+Prompts: trigger (push/schedule/both), branch, schedule cron, deploy mode,
+and a GitHub registration token (unless provided via GDR_TOKEN).
+USAGE
+    return 0
+  fi
+
+  if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    _fatal "Not inside a Git repository. Run 'fastpull activate' in your project repo."
+  fi
+  local remote_url
+  if ! remote_url=$(git remote get-url origin 2>/dev/null); then
+    _fatal "No 'origin' remote found. Add a GitHub remote named 'origin' and retry."
+  fi
+  local https_url
+  https_url=$(_normalize_repo_url "${remote_url}")
+  if [[ -z "${https_url}" ]]; then
+    _fatal "Could not determine repository URL from remote 'origin'."
+  fi
+  local repo_name
+  repo_name=$(basename "${https_url}")
+  local default_slug
+  default_slug=$(_slugify "${repo_name}")
+
+  _info "Detected repository: ${https_url}"
+
+  local trigger branch cron_expr deploy_mode systemd_service slug labels token
+  _prompt "When to deploy? (push|schedule|both)" trigger "push" "GDR_TRIGGER"
+  _prompt "Deploy on pushes to branch" branch "main" "GDR_BRANCH"
+  if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
+    _prompt "Cron schedule (e.g., '0 2 * * *')" cron_expr "0 2 * * *" "GDR_CRON"
+  fi
+  _prompt "Deployment mode (docker|systemd|custom)" deploy_mode "docker" "GDR_DEPLOY_MODE"
+  if [[ "${deploy_mode}" == "systemd" ]]; then
+    _prompt "Systemd service name to restart on deploy" systemd_service "${default_slug}.service" "GDR_SYSTEMD_SERVICE"
+  fi
+  _prompt "Runner slug" slug "${default_slug}" "GDR_SLUG"
+  labels="self-hosted,linux,x64,${slug}"
+
+  _prompt_masked "GitHub Runner registration token (or set GDR_TOKEN)" token "GDR_TOKEN"
+
+  _info "Configuring runner non-interactively..."
+  local env_cmd=(env FASTPULL_NONINTERACTIVE=yes GDR_SCOPE=repo GDR_URL="${https_url}" GDR_APP_NAME="${repo_name}" GDR_SLUG="${slug}" GDR_RUNNER_LABELS="${labels}" GDR_DEPLOY_MODE="${deploy_mode}" GDR_TOKEN="${token}")
+  if [[ "${deploy_mode}" == "systemd" ]]; then
+    env_cmd+=(GDR_SYSTEMD_SERVICE="${systemd_service}")
+  fi
+  if ! sudo "${env_cmd[@]}" fastpull setup; then
+    _fatal "Runner setup failed."
+  fi
+
+  _info "Generating workflow at .github/workflows/deploy.yml ..."
+  local wf_dir=".github/workflows"
+  local wf_path="${wf_dir}/deploy.yml"
+  mkdir -p "${wf_dir}"
+  {
+    echo "# .github/workflows/deploy.yml"
+    echo "name: Deploy to VM"
+    echo
+    echo "on:"
+    if [[ "${trigger}" == "push" || "${trigger}" == "both" ]]; then
+      echo "  push:"
+      echo "    branches:"
+      echo "      - ${branch}"
+    fi
+    if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
+      echo "  schedule:"
+      echo "    - cron: '${cron_expr}'"
+    fi
+    echo "  workflow_dispatch:"
+    echo
+    cat <<EOF
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, linux, x64, ${slug}]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Deploy application
+        run: |
+          set -e
+          APP_DIR="/opt/apps/${slug}"
+          echo "--> Syncing application files to \\${APP_DIR}"
+          rsync -av --delete --exclude='.git/' ./ "\\${APP_DIR}/"
+          cd "\\${APP_DIR}"
+EOF
+    if [[ "${deploy_mode}" == "docker" ]]; then
+      cat <<'EOF'
+          echo "--> Pulling latest images"
+          docker compose pull || true
+          echo "--> Building and starting containers"
+          docker compose up -d --remove-orphans --build
+EOF
+    elif [[ "${deploy_mode}" == "systemd" ]]; then
+      echo "          echo \"--> Restarting service\""
+      echo "          sudo systemctl restart ${systemd_service}"
+    else
+      echo "          echo \"--> Running custom deploy script\""
+      echo "          ./deploy.sh"
+    fi
+    echo "          echo \"--> Deployment complete!\""
+  } > "${wf_path}"
+
+  local do_commit
+  _prompt "Commit workflow file now? (yes|no)" do_commit "yes" "GDR_COMMIT_WORKFLOW"
+  if [[ "${do_commit}" == "yes" ]]; then
+    git add "${wf_path}" || _warn "git add failed."
+    git commit -m "Add deploy workflow via fastpull" || _warn "git commit failed."
+    _info "You can now 'git push' to trigger a deployment (if using push trigger)."
+  else
+    _info "Workflow created at ${wf_path}. Remember to commit and push it."
+  fi
+
+  _success "Activation complete for ${https_url}."
 }
 
 _cmd_version() {
@@ -887,7 +1034,7 @@ main() {
   shift || true
 
   case "${cmd}" in
-  setup | list | status | uninstall | destroy | upgrade | doctor | version)
+  setup | activate | list | status | uninstall | destroy | upgrade | doctor | version)
     _cmd_"${cmd}" "$@"
     ;;
   help | --help | -h | "")
