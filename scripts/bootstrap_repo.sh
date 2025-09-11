@@ -53,7 +53,7 @@ main() {
     echo "    4. fastpull --help"
     echo
     echo "  Review the generated files, especially README.md and CONTRIBUTING.md."
-    echo "  Remember to replace placeholders like 'YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO'."
+    echo "  Remember to replace placeholders like 'gigahidjrikaaa/Fastpull'."
     echo
 }
 
@@ -81,7 +81,7 @@ cat <<'EOF' > fastpull/bin/fastpull
 #
 # fastpull: A zero-dependency CLI for GitHub Actions push-to-deploy runners.
 #
-# Author: Your Name <you@example.com>
+# Author: GIga Hidjrika Aura Adkhy <gigahidjrikaaa@gmail.com>
 # License: MIT
 # Version: 0.2.0
 
@@ -227,7 +227,7 @@ ${CLR_BOLD}ENVIRONMENT VARIABLES:${CLR_RESET}
     See README.md for a full list of environment variables for non-interactive setup.
     Example: GDR_SCOPE, GDR_URL, GDR_TOKEN, etc.
 
-For more details, see the documentation at: https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO
+For more details, see the documentation at: https://github.com/gigahidjrikaaa/Fastpull
 USAGE
 }
 
@@ -797,7 +797,7 @@ cat <<'EOF' > fastpull/scripts/curl-install.sh
 #
 # This script downloads and installs the 'fastpull' CLI.
 #
-# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 #
 # You can customize the installation by setting environment variables:
 #   - FASTPULL_REF: The git ref (branch, tag, commit) to install from (default: main).
@@ -806,7 +806,7 @@ cat <<'EOF' > fastpull/scripts/curl-install.sh
 set -e
 
 # --- Configuration ---
-GITHUB_REPO="YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO"
+GITHUB_REPO="gigahidjrikaaa/Fastpull"
 : "${FASTPULL_REF:=main}"
 : "${FASTPULL_PREFIX:=/usr/local}"
 
@@ -924,7 +924,7 @@ Set TypingSpeed 100ms
 # --- Demo Storyboard ---
 
 # 1. Show the prompt and install fastpull
-Type "curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash"
+Type "curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash"
 Enter
 Sleep 2s
 
@@ -938,7 +938,7 @@ Sleep 1s
 Enter
 Sleep 1s
 # URL: Your repo URL
-Type "https://github.com/YOUR_GITHUB_OWNER/YOUR_TEST_REPO"
+Type "https://github.com/gigahidjrikaaa/Fastpull-test"
 Enter
 Sleep 1s
 # App Name
@@ -960,7 +960,7 @@ Sleep 1s
 Enter
 Sleep 1s
 # Token: Paste your token here
-Type "ghp_YourGitHubTokenGoesHere"
+Type "YOUR_GITHUB_TOKEN" # Replace with your GitHub token
 Enter
 Sleep 5s
 
@@ -970,7 +970,7 @@ Enter
 Sleep 3s
 
 # 4. Show the sample workflow file
-Type "cat /opt/apps/your-test-repo/SAMPLE_deploy.yml"
+Type "cat /opt/apps/Fastpull-test/SAMPLE_deploy.yml"
 Enter
 Sleep 5s
 
@@ -984,7 +984,7 @@ Enter
 Sleep 5s
 
 # 6. Show the runner picking up the job (pretend)
-Type "sudo fastpull status your-test-repo"
+Type "sudo fastpull status Fastpull-test"
 Enter
 Sleep 5s
 # Show logs indicating a job was run
@@ -1001,12 +1001,12 @@ cat <<'EOF' > fastpull/packaging/deb/DEBIAN/control
 Package: fastpull
 Version: 0.2.0
 Architecture: all
-Maintainer: Your Name <you@example.com>
+Maintainer: Giga Hidjrika Agusta <gigahidjrikaaa@gmail.com>
 Description: A zero-dependency CLI for GitHub Actions push-to-deploy runners.
  Fastpull simplifies setting up and managing self-hosted GitHub Actions runners
  on Debian/Ubuntu VMs for easy, secure push-to-deploy workflows. 
  It supports Docker Compose, systemd, and custom deployment scripts.
-Homepage: https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO
+Homepage: https://github.com/gigahidjrikaaa/Fastpull
 EOF
 
 echo "==> Creating packaging/deb/postinst..."
@@ -1254,15 +1254,15 @@ packages:
 runcmd:
   - |
     # Install fastpull
-    curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+    curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 
     # Set up the runner non-interactively
     export GDR_SCOPE="repo"
-    export GDR_URL="https://github.com/YOUR_GITHUB_OWNER/YOUR_REPO"
+    export GDR_URL="https://github.com/gigahidjrikaaa/Fastpull"
     export GDR_APP_NAME="my-prod-app"
     export GDR_RUNNER_LABELS="self-hosted,linux,x64,prod-app"
     export GDR_DEPLOY_MODE="docker"
-    export GDR_TOKEN="YOUR_RUNNER_REGISTRATION_TOKEN"
+    export GDR_TOKEN="YOUR_RUNNER_REGISTRATION_TOKEN" # Replace with your token
     export FASTPULL_NONINTERACTIVE="yes"
 
     sudo fastpull setup
@@ -1490,7 +1490,7 @@ cat <<'EOF' > fastpull/README.md
 
 **Fast, zero-dependency push-to-deploy for plain VMs via GitHub Actions self-hosted runners.**
 
-[![CI](https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/actions/workflows/ci.yml)
+[![CI](https://github.com/gigahidjrikaaa/Fastpull/actions/workflows/ci.yml/badge.svg)](https://github.com/gigahidjrikaaa/Fastpull/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Fastpull is a single-file Bash CLI that automates the setup and management of GitHub Actions self-hosted runners on your Debian or Ubuntu VMs. It's designed to be the simplest way to enable a secure "push-to-deploy" workflow for your applications without complex orchestration tools.
@@ -1542,9 +1542,9 @@ This is a storyboard for a terminal recording that shows the end-to-end flow.
 Install the `fastpull` CLI to `/usr/local/bin/fastpull` with one command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 ```
-*(Remember to replace `YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO` with your fork's path if you're not using the main repo.)*
+*(Remember to replace `gigahidjrikaaa/Fastpull` with your fork's path if you're not using the main repo.)*
 
 ### Setup Your First Runner
 
@@ -1908,7 +1908,7 @@ echo "==> Creating LICENSE..."
 cat <<'EOF' > fastpull/LICENSE
 MIT License
 
-Copyright (c) $(date +%Y) Your Name
+Copyright (c) $(date +%Y) GIga Hidjrika Aura Adkhy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

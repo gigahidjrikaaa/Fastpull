@@ -24,7 +24,7 @@ Set TypingSpeed 100ms
 # --- Demo Storyboard ---
 
 # 1. Show the prompt and install fastpull
-Type "curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash"
+Type "curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash"
 Enter
 Sleep 2s
 
@@ -38,7 +38,7 @@ Sleep 1s
 Enter
 Sleep 1s
 # URL: Your repo URL
-Type "https://github.com/YOUR_GITHUB_OWNER/YOUR_TEST_REPO"
+Type "https://github.com/gigahidjrikaaa/Fastpull-test"
 Enter
 Sleep 1s
 # App Name
@@ -60,7 +60,7 @@ Sleep 1s
 Enter
 Sleep 1s
 # Token: Paste your token here
-Type "ghp_YourGitHubTokenGoesHere"
+Type "YOUR_GITHUB_TOKEN" # Replace with your GitHub token
 Enter
 Sleep 5s
 
@@ -70,7 +70,7 @@ Enter
 Sleep 3s
 
 # 4. Show the sample workflow file
-Type "cat /opt/apps/your-test-repo/SAMPLE_deploy.yml"
+Type "cat /opt/apps/Fastpull-test/SAMPLE_deploy.yml"
 Enter
 Sleep 5s
 
@@ -84,7 +84,7 @@ Enter
 Sleep 5s
 
 # 6. Show the runner picking up the job (pretend)
-Type "sudo fastpull status your-test-repo"
+Type "sudo fastpull status Fastpull-test"
 Enter
 Sleep 5s
 # Show logs indicating a job was run

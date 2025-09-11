@@ -1,9 +1,9 @@
 Package: fastpull
 Version: 0.2.0
 Architecture: all
-Maintainer: Your Name <you@example.com>
+Maintainer: GIga Hidjrika Aura Adkhy <gigahidjrikaaa@gmail.com>
 Description: A zero-dependency CLI for GitHub Actions push-to-deploy runners.
  Fastpull simplifies setting up and managing self-hosted GitHub Actions runners
  on Debian/Ubuntu VMs for easy, secure push-to-deploy workflows. 
  It supports Docker Compose, systemd, and custom deployment scripts.
-Homepage: https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO
+Homepage: https://github.com/gigahidjrikaaa/Fastpull

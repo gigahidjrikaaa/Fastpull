@@ -1,9 +1,43 @@
-# Fastpull 🚀
+<!-- LOGO (optional) -->
+<p align="center">
+  <!-- <a href="https://github.com/gigahidjrikaaa/Fastpull">
+    <img src="path/to/your/logo.png" alt="Logo" width="80" height="80">
+  </a> -->
+</p>
 
-**Fast, zero-dependency push-to-deploy for plain VMs via GitHub Actions self-hosted runners.**
+<h1 align="center">Fastpull 🚀</h1>
 
-[![CI](https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <strong>Fast, zero-dependency push-to-deploy for plain VMs via GitHub Actions self-hosted runners.</strong>
+  <br />
+  <br />
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/issues/new?assignees=&labels=bug&template=bug_report.md&title=">Report a Bug</a>
+  ·
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=">Request a Feature</a>
+  ·
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/blob/main/CHANGELOG.md">View Changelog</a>
+</p>
+
+<p align="center">
+  <!-- Badges -->
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/actions/workflows/ci.yml">
+    <img src="https://github.com/gigahidjrikaaa/Fastpull/actions/workflows/ci.yml/badge.svg" alt="CI Status">
+  </a>
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/releases/latest">
+    <img src="https://img.shields.io/github/v/release/gigahidjrikaaa/Fastpull" alt="Latest Release">
+  </a>
+  <a href="https://github.com/gigahidjrikaaa/Fastpull/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/gigahidjrikaaa/Fastpull" alt="License">
+  </a>
+  <a href="https://github.com/gigahidjrikaaa/Fastpull">
+    <img src="https://img.shields.io/github/repo-size/gigahidjrikaaa/Fastpull" alt="Repo Size">
+  </a>
+  <a href="https://www.gnu.org/software/bash/">
+    <img src="https://img.shields.io/badge/Built%20with-Shell%20Script-1f425f.svg" alt="Built with Shell Script">
+  </a>
+</p>
+
+---
 
 Fastpull is a single-file Bash CLI that automates the setup and management of GitHub Actions self-hosted runners on your Debian or Ubuntu VMs. It's designed to be the simplest way to enable a secure "push-to-deploy" workflow for your applications without complex orchestration tools.
 
@@ -54,9 +88,9 @@ This is a storyboard for a terminal recording that shows the end-to-end flow.
 Install the `fastpull` CLI to `/usr/local/bin/fastpull` with one command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 ```
-*(Remember to replace `YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO` with your fork's path if you're not using the main repo.)*
+*(Remember to replace `gigahidjrikaaa/Fastpull` with your fork's path if you're not using the main repo.)*
 
 ### Setup Your First Runner
 
@@ -84,13 +118,15 @@ curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO
 
 ## Commands
 
-- `fastpull setup`: Interactively set up a new self-hosted runner.
-- `fastpull list`: List all runners managed by fastpull.
-- `fastpull status <slug>`: Show the status of a specific runner.
-- `fastpull uninstall <slug>`: Uninstall a runner service (keeps app data).
-- `fastpull destroy <slug>`: Aggressively remove a runner and all its files.
-- `fastpull doctor`: Run diagnostics to check system compatibility.
-- `fastpull help`: Show the help message.
+| Command                | Description                                                  |
+| ---------------------- | ------------------------------------------------------------ |
+| `fastpull setup`       | Interactively set up a new self-hosted runner.               |
+| `fastpull list`        | List all runners managed by fastpull.                        |
+| `fastpull status <slug>` | Show the status of a specific runner.                        |
+| `fastpull uninstall <slug>`| Uninstall a runner service (keeps app data).                 |
+| `fastpull destroy <slug>`| Aggressively remove a runner and all its files.              |
+| `fastpull doctor`      | Run diagnostics to check system compatibility.               |
+| `fastpull help`        | Show the help message.                                       |
 
 ## Security
 
@@ -104,7 +140,7 @@ curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `dependency 'jq' is not installed`          | Run `sudo apt-get update && sudo apt-get install -y jq`.                                                                       |
 | `Runner configuration failed`               | Your registration token may be incorrect or expired. Generate a new one and try again.                                         |
-| `docker: command not found` (in deploy job) | Ensure Docker is installed on the VM. `fastpull setup` offers to do this, or you can run `curl -fsSL https://get.docker.com | sh`.
+| `docker: command not found` (in deploy job) | Ensure Docker is installed on the VM. `fastpull setup` offers to do this, or you can run `curl -fsSL https://get.docker.com | sh`. |
 | Job is stuck on "Waiting for a runner"      | Check that the labels in your workflow file (`runs-on: [...]`) exactly match the labels you configured for the runner.           |
 
 ## Contributing

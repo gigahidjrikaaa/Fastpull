@@ -11,11 +11,11 @@ packages:
 runcmd:
   - |
     # Install fastpull
-    curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+    curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 
     # Set up the runner non-interactively
     export GDR_SCOPE="repo"
-    export GDR_URL="https://github.com/YOUR_GITHUB_OWNER/YOUR_REPO"
+    export GDR_URL="https://github.com/gigahidjrikaaa/Fastpull"
     export GDR_APP_NAME="my-prod-app"
     export GDR_RUNNER_LABELS="self-hosted,linux,x64,prod-app"
     export GDR_DEPLOY_MODE="docker"

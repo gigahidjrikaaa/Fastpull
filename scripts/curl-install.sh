@@ -2,7 +2,7 @@
 #
 # This script downloads and installs the 'fastpull' CLI.
 #
-# Usage: curl -sSL https://raw.githubusercontent.com/YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO/main/scripts/curl-install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 #
 # You can customize the installation by setting environment variables:
 #   - FASTPULL_REF: The git ref (branch, tag, commit) to install from (default: main).
@@ -11,7 +11,7 @@
 set -e
 
 # --- Configuration ---
-GITHUB_REPO="YOUR_GITHUB_OWNER/YOUR_FASTPULL_REPO"
+GITHUB_REPO="gigahidjrikaaa/Fastpull"
 : "${FASTPULL_REF:=main}"
 : "${FASTPULL_PREFIX:=/usr/local}"
 
