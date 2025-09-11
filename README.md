@@ -75,6 +75,27 @@ This is a storyboard for a terminal recording that shows the end-to-end flow.
 
 --- 
 
+## How It Works (Diagram)
+
+```
+You (git push)
+    |
+    v
+GitHub (repo)
+    |
+    | triggers workflow on push
+    v
+Self-hosted Runner on your VM  <--- installed by: sudo fastpull setup
+    |
+    | checks out your repo
+    | rsyncs files to /opt/apps/<slug>
+    v
+Docker Compose (or systemd/custom)
+    |
+    v
+Your app is rebuilt/restarted and is live
+```
+
 ## Quickstart
 
 ### Prerequisites
@@ -91,6 +112,67 @@ Install the `fastpull` CLI to `/usr/local/bin/fastpull` with one command:
 curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
 ```
 *(Remember to replace `gigahidjrikaaa/Fastpull` with your fork's path if you're not using the main repo.)*
+
+### New To This? Follow These Steps
+
+Copy/paste the commands below on your VM. Wherever you see something in ALL_CAPS, replace it with your values.
+
+1) Get a GitHub Actions registration token
+- Repo scope: GitHub > Your repo > Settings > Actions > Runners > New self-hosted runner > Copy the token
+- Org scope: GitHub > Your org > Settings > Actions > Runners > New runner > Copy the token
+
+2) Install the CLI on the VM
+```bash
+curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
+```
+
+3) Run setup (interactive)
+```bash
+sudo fastpull setup
+```
+Example answers you can use at the prompts:
+- Scope: repo
+- URL: https://github.com/YOUR_USER/YOUR_REPO
+- App name: my-app (fastpull will make this a slug like `my-app`)
+- Deployment mode: docker
+- Token: paste the token you copied from GitHub
+
+4) Add the workflow to your repo
+- After setup, fastpull prints the path to a sample workflow like:
+  `/opt/apps/my-app/SAMPLE_deploy.yml`
+- Copy its contents into your project at `.github/workflows/deploy.yml`.
+- Replace `APP_SLUG` with your slug (e.g., `my-app`).
+
+5) Push code to deploy
+```bash
+git add -A && git commit -m "deploy" && git push
+```
+- Your runner picks up the job and deploys your app (for Docker: `docker compose up -d --build`).
+
+6) Check runner and logs
+```bash
+fastpull list
+fastpull status my-app
+```
+
+If you get stuck, see the Troubleshooting section below.
+
+### Alternative: One-Step Activation (in an existing repo)
+
+If you’ve already cloned your app repo onto the VM, you can set things up from inside it with fewer prompts:
+
+```bash
+cd /path/to/your/repo
+fastpull activate
+```
+
+What it does:
+- Detects your GitHub repo from `git remote origin`
+- Asks how to trigger deployments (on push, on a schedule, or both)
+- Creates `.github/workflows/deploy.yml` in your repo (you can choose to auto-commit)
+- Configures the runner on the VM using your repo URL
+
+You’ll still need a GitHub Actions runner registration token. If you have it handy, paste it when prompted, or set it in `GDR_TOKEN` before running `fastpull activate`.
 
 ### Setup Your First Runner
 
@@ -116,6 +198,51 @@ curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts
 
 5.  **Push your changes**, and watch your deployment happen automatically!
 
+### Sample Workflow (Docker Compose)
+
+Copy this into `.github/workflows/deploy.yml` and replace `APP_SLUG` with your slug (for example, `my-app`). The labels in `runs-on` must match the labels you set during `fastpull setup`.
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - main # Or your deployment branch
+
+jobs:
+  deploy:
+    name: Deploy
+    # IMPORTANT: Replace these labels with the ones you configured during setup.
+    runs-on: [self-hosted, linux, x64, APP_SLUG] # e.g., my-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy application
+        run: |
+          set -e
+          # This path is configured during 'fastpull setup'
+          APP_DIR="/opt/apps/APP_SLUG"
+
+          echo "--> Syncing application files to ${APP_DIR}"
+          # Use rsync to efficiently update the application directory
+          rsync -av --delete --exclude='.git/' ./ "${APP_DIR}/"
+
+          cd "${APP_DIR}"
+
+          echo "--> Pulling latest images"
+          docker compose pull || true
+
+          echo "--> Building and starting containers"
+          # --remove-orphans cleans up containers for services that no longer exist
+          docker compose up -d --build --remove-orphans
+
+          echo "--> Deployment complete!"
+```
+
 ## Commands
 
 | Command                | Description                                                  |
@@ -123,14 +250,33 @@ curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts
 | `fastpull setup`       | Interactively set up a new self-hosted runner.               |
 | `fastpull list`        | List all runners managed by fastpull.                        |
 | `fastpull status <slug>` | Show the status of a specific runner.                        |
+| `fastpull upgrade [<slug>]` | Upgrade one or all runners to the latest runner version.    |
 | `fastpull uninstall <slug>`| Uninstall a runner service (keeps app data).                 |
 | `fastpull destroy <slug>`| Aggressively remove a runner and all its files.              |
 | `fastpull doctor`      | Run diagnostics to check system compatibility.               |
 | `fastpull help`        | Show the help message.                                       |
+| `fastpull version`     | Show the version of fastpull.                                |
 
 See `docs/ROADMAP.md` for planned improvements.
 
 Tip: Use `fastpull --help` for top-level help, or `fastpull <command> --help` for command-specific usage.
+
+## Where Things Go (after setup)
+
+- Runners: `/opt/gha-runners/<slug>` (runner files and service scripts)
+- App files: `/opt/apps/<slug>` (what your workflow deploys to)
+- Service: a systemd unit named like `actions.runner.<something with your slug>.service`
+
+## Uninstall / Cleanup
+
+- Remove a runner but keep app data:
+  ```bash
+  sudo fastpull uninstall <slug>
+  ```
+- Remove everything (runner + files):
+  ```bash
+  sudo fastpull destroy <slug>
+  ```
 
 ## Environment Variables
 
@@ -169,6 +315,12 @@ These are demonstrated in `docs/cloud-init/*.yml` for various cloud providers.
 | `Runner configuration failed`               | Your registration token may be incorrect or expired. Generate a new one and try again.                                         |
 | `docker: command not found` (in deploy job) | Ensure Docker is installed on the VM. `fastpull setup` offers to do this, or you can run `curl -fsSL https://get.docker.com | sh`. |
 | Job is stuck on "Waiting for a runner"      | Check that the labels in your workflow file (`runs-on: [...]`) exactly match the labels you configured for the runner.           |
+
+Common pitfalls
+- Labels don’t match: Ensure the labels in `runs-on: [...]` include the slug label you set during setup (e.g., `my-app`).
+- Missing deps: The VM needs `curl`, `jq`, and `tar`. Run `sudo apt-get update && sudo apt-get install -y curl jq tar`.
+- No journal logs: `fastpull status <slug>` may need `sudo` to read logs; it will try automatically.
+- Docker perms: If Docker was installed, a re-login or reboot might be required for the runner user to join the `docker` group.
 
 ## Contributing
 
