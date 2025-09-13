@@ -251,6 +251,7 @@ jobs:
 | `fastpull setup`       | Interactively set up a new self-hosted runner.               |
 | `fastpull list`        | List all runners managed by fastpull.                        |
 | `fastpull status <slug>` | Show the status of a specific runner.                        |
+| `fastpull update`           | Update the fastpull CLI to the latest (or specified) version. |
 | `fastpull upgrade [<slug>]` | Upgrade one or all runners to the latest runner version.    |
 | `fastpull uninstall [--all]` | Uninstall the fastpull CLI; with `--all` also purge runners/apps. |
 | `fastpull destroy <slug>`| Remove a runner (optionally its app directory).             |
@@ -262,6 +263,22 @@ jobs:
 See `docs/ROADMAP.md` for planned improvements.
 
 Tip: Use `fastpull --help` for top-level help, or `fastpull <command> --help` for command-specific usage.
+
+### Updating fastpull
+
+- Update to the latest release:
+  ```bash
+  sudo fastpull update
+  ```
+- Update to a specific tag (e.g., v0.2.1):
+  ```bash
+  FASTPULL_UPDATE_REF=v0.2.1 sudo fastpull update
+  # or
+  sudo fastpull update --ref v0.2.1
+  ```
+Notes:
+- If installed via `.deb`, fastpull update installs the latest `.deb` from Releases.
+- Otherwise it downloads the script from the tagged source (`bin/fastpull`) and replaces the binary.
 
 No color output (for copy/paste or logs):
 - Add `--no-color` after `fastpull` or set `FASTPULL_COLOR=never`.

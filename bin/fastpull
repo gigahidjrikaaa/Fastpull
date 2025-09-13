@@ -134,6 +134,7 @@ ${CLR_BOLD}COMMANDS:${CLR_RESET}
     ${CLR_GREEN}list${CLR_RESET}               List all runners managed by fastpull.
     ${CLR_GREEN}status <slug>${CLR_RESET}      Show the status of a specific runner.
     ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest (or specified) version.
+    ${CLR_GREEN}update${CLR_RESET}             Update the fastpull CLI to the latest (or specified) version.
     ${CLR_GREEN}uninstall [--all]${CLR_RESET}  Uninstall the fastpull CLI; with --all also purge runners/apps.
     ${CLR_GREEN}destroy <slug>${CLR_RESET}     Remove a runner (optionally its app directory).
     ${CLR_GREEN}doctor${CLR_RESET}             Run diagnostics to check system compatibility.
@@ -693,6 +694,97 @@ find_runner_service() {
   echo "${guess}"
 }
 
+_cmd_update() {
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull update [--ref <tag>] [--repo <owner/repo>]
+
+Update the fastpull CLI in-place to the latest GitHub release, or a
+specific tag via --ref (e.g., v0.2.1). If the CLI was installed via
+dpkg, downloads the latest .deb and installs it. Otherwise, replaces
+the fastpull binary directly.
+
+Environment:
+  FASTPULL_REPO           Override repository (default: gigahidjrikaaa/Fastpull)
+  FASTPULL_UPDATE_REF     Tag or branch to install (default: latest release)
+USAGE
+        return 0
+    fi
+
+    _check_root
+    _check_deps "curl" "jq"
+
+    local repo ref
+    repo="${FASTPULL_REPO:-gigahidjrikaaa/Fastpull}"
+    ref="${FASTPULL_UPDATE_REF:-}"
+
+    # Parse simple flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repo)
+                repo="$2"; shift 2 ;;
+            --ref)
+                ref="$2"; shift 2 ;;
+            --help|-h)
+                _cmd_update --help; return 0 ;;
+            *)
+                _warn "Unknown option to update: $1"; shift ;;
+        esac
+    done
+
+    local api_url="https://api.github.com/repos/${repo}"
+    local release_json tag
+    if [[ -n "${ref}" ]]; then
+        tag="${ref}"
+        release_json=$(curl -fsSL "${api_url}/releases/tags/${tag}" || true)
+        [[ -z "${release_json}" ]] && _fatal "Failed to fetch release for tag ${tag}"
+    else
+        release_json=$(curl -fsSL "${api_url}/releases/latest" || true)
+        [[ -z "${release_json}" ]] && _fatal "Failed to query latest release from ${repo}"
+        tag=$(echo "${release_json}" | jq -r .tag_name)
+        [[ -z "${tag}" || "${tag}" == "null" ]] && _fatal "Release tag not found in API response"
+    fi
+
+    _info "Target version: ${tag}"
+
+    local is_pkg=0
+    if command -v dpkg &>/dev/null && dpkg -s fastpull &>/dev/null; then
+        is_pkg=1
+    fi
+
+    if [[ ${is_pkg} -eq 1 ]]; then
+        # Install via .deb asset
+        local deb_name="fastpull_${tag}_all.deb"
+        local deb_url
+        deb_url=$(echo "${release_json}" | jq -r ".assets[] | select(.name == \"${deb_name}\") | .browser_download_url")
+        if [[ -z "${deb_url}" || "${deb_url}" == "null" ]]; then
+            _warn "Release does not contain ${deb_name}. Falling back to binary replacement."
+        else
+            _info "Downloading ${deb_name}..."
+            local tmp_deb
+            tmp_deb=$(mktemp)
+            curl -fsSL "${deb_url}" -o "${tmp_deb}" || _fatal "Failed to download ${deb_name}"
+            _info "Installing ${deb_name}..."
+            sudo dpkg -i "${tmp_deb}" || _fatal "dpkg installation failed"
+            rm -f "${tmp_deb}"
+            _success "fastpull updated to ${tag} via .deb"
+            return 0
+        fi
+    fi
+
+    # Fallback: replace the binary directly
+    local bin_url_raw="https://raw.githubusercontent.com/${repo}/${tag}/bin/fastpull"
+    local tmp_bin install_path
+    tmp_bin=$(mktemp)
+    _info "Downloading fastpull from ${bin_url_raw} ..."
+    curl -fsSL "${bin_url_raw}" -o "${tmp_bin}" || _fatal "Failed to download fastpull script"
+    chmod +x "${tmp_bin}"
+    install_path=$(command -v fastpull || echo "/usr/local/bin/fastpull")
+    _info "Installing to ${install_path} ..."
+    mv "${tmp_bin}" "${install_path}" || _fatal "Failed to replace ${install_path}"
+    _success "fastpull updated to ${tag}"
+}
+
 _cmd_list() {
     if [[ "$1" == "-h" || "$1" == "--help" ]]; then
         cat <<'USAGE'
@@ -1172,7 +1264,7 @@ main() {
   fi
 
   case "${cmd}" in
-  setup | list | status | uninstall | destroy | upgrade | doctor | version)
+  setup | list | status | uninstall | destroy | update | upgrade | doctor | version)
     _cmd_"${cmd}" "$@"
     ;;
   help | --help | -h | "")
