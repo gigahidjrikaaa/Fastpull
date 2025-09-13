@@ -252,8 +252,9 @@ jobs:
 | `fastpull list`        | List all runners managed by fastpull.                        |
 | `fastpull status <slug>` | Show the status of a specific runner.                        |
 | `fastpull upgrade [<slug>]` | Upgrade one or all runners to the latest runner version.    |
-| `fastpull uninstall <slug>`| Uninstall a runner service (keeps app data).                 |
-| `fastpull destroy <slug>`| Aggressively remove a runner and all its files.              |
+| `fastpull uninstall [--all]` | Uninstall the fastpull CLI; with `--all` also purge runners/apps. |
+| `fastpull destroy <slug>`| Remove a runner (optionally its app directory).             |
+| `fastpull self-uninstall` | Remove the fastpull CLI from this system.                   |
 | `fastpull doctor`      | Run diagnostics to check system compatibility.               |
 | `fastpull help`        | Show the help message.                                       |
 | `fastpull version`     | Show the version of fastpull.                                |
@@ -274,13 +275,17 @@ No color output (for copy/paste or logs):
 
 ## Uninstall / Cleanup
 
-- Remove a runner but keep app data:
-  ```bash
-  sudo fastpull uninstall <slug>
-  ```
-- Remove everything (runner + files):
+- Remove a runner (you will be asked whether to remove the app directory):
   ```bash
   sudo fastpull destroy <slug>
+  ```
+- Remove the fastpull CLI itself:
+  ```bash
+  sudo fastpull uninstall
+  ```
+- Remove the fastpull CLI AND all runners/apps:
+  ```bash
+  sudo fastpull uninstall --all
   ```
 
 ## Environment Variables

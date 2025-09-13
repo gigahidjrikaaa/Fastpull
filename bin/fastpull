@@ -134,8 +134,8 @@ ${CLR_BOLD}COMMANDS:${CLR_RESET}
     ${CLR_GREEN}list${CLR_RESET}               List all runners managed by fastpull.
     ${CLR_GREEN}status <slug>${CLR_RESET}      Show the status of a specific runner.
     ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest (or specified) version.
-    ${CLR_GREEN}uninstall <slug>${CLR_RESET}   Uninstall a runner service (keeps app data).
-    ${CLR_GREEN}destroy <slug>${CLR_RESET}     Aggressively remove a runner and its related files.
+    ${CLR_GREEN}uninstall [--all]${CLR_RESET}  Uninstall the fastpull CLI; with --all also purge runners/apps.
+    ${CLR_GREEN}destroy <slug>${CLR_RESET}     Remove a runner (optionally its app directory).
     ${CLR_GREEN}doctor${CLR_RESET}             Run diagnostics to check system compatibility.
     ${CLR_GREEN}help${CLR_RESET}               Show this help message.
     ${CLR_GREEN}version${CLR_RESET}            Show the version of fastpull.
@@ -790,18 +790,10 @@ USAGE
   fi
 }
 
-_cmd_uninstall() {
-    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-        cat <<'USAGE'
-Usage: fastpull uninstall <slug>
-
-Stop the runner service, unregister from GitHub, and remove its files.
-USAGE
-        return 0
-    fi
-    _check_root
+_uninstall_runner() {
+  _check_root
   local slug="$1"
-  [[ -z "${slug}" ]] && _fatal "Usage: fastpull uninstall <slug>"
+  [[ -z "${slug}" ]] && _fatal "Usage: fastpull destroy <slug>"
 
   local runner_dir="${GDR_RUNNER_BASE:-/opt/gha-runners}/${slug}"
   [[ ! -d "${runner_dir}" ]] && _fatal "Runner with slug '${slug}' not found."
@@ -818,10 +810,8 @@ USAGE
   sudo ./svc.sh uninstall
 
   _info "Removing runner configuration from GitHub..."
-  # We need the token to do this cleanly. If not available, it will fail but we proceed.
   local token
   _prompt_masked "Enter a valid GitHub PAT or registration token to remove the runner" token "GDR_TOKEN"
-
   ./config.sh remove --unattended --token "${token}" || _warn "Failed to remove runner from GitHub. You may need to remove it manually from the UI. This can happen if the token is expired."
 
   _info "Removing runner directory: ${runner_dir}"
@@ -846,6 +836,25 @@ USAGE
   fi
 }
 
+_cmd_uninstall() {
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull uninstall [--all]
+
+Remove the fastpull CLI. With --all, also remove all runners under /opt/gha-runners
+and application directories under /opt/apps.
+USAGE
+        return 0
+    fi
+
+    # Delegate to self-uninstall logic
+    if [[ "$1" == "--all" ]]; then
+        FASTPULL_PURGE_ALL=yes FASTPULL_PURGE_APPS=yes _cmd_self-uninstall
+    else
+        _cmd_self-uninstall
+    fi
+}
+
 _cmd_destroy() {
     if [[ "$1" == "-h" || "$1" == "--help" ]]; then
         cat <<'USAGE'
@@ -855,8 +864,84 @@ Alias for 'uninstall' with aggressive cleanup.
 USAGE
         return 0
     fi
-    _warn "The 'destroy' command is an alias for 'uninstall' with aggressive cleanup."
-    _cmd_uninstall "$@"
+    _uninstall_runner "$@"
+}
+
+_cmd_self-uninstall() {
+    if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+        cat <<'USAGE'
+Usage: fastpull self-uninstall [--help]
+
+Removes the fastpull CLI from this system. Optionally removes all runners
+managed under /opt/gha-runners and their application directories under /opt/apps.
+
+Environment variables:
+  FASTPULL_CONFIRM_SELF_UNINSTALL=yes   Proceed without interactive confirmation.
+  FASTPULL_PURGE_ALL=yes                Also remove all runners and app directories.
+  FASTPULL_PURGE_APPS=yes               When purging, also remove app dirs under /opt/apps.
+USAGE
+        return 0
+    fi
+
+    _check_root
+
+    local proceed
+    if [[ "${FASTPULL_CONFIRM_SELF_UNINSTALL:-no}" == "yes" ]]; then
+        proceed="yes"
+    else
+        _prompt "This will remove the fastpull binary. Continue? (yes|no)" proceed "no" "FASTPULL_CONFIRM_SELF_UNINSTALL"
+    fi
+    if [[ "${proceed}" != "yes" ]]; then
+        _info "Self-uninstall aborted."
+        return 1
+    fi
+
+    # If installed via Debian package, offer to remove with apt/dpkg
+    if command -v dpkg &>/dev/null && dpkg -s fastpull &>/dev/null; then
+        _info "Detected Debian package 'fastpull'. Attempting removal via apt/dpkg..."
+        if command -v apt-get &>/dev/null; then
+            sudo apt-get remove -y fastpull || _warn "apt-get remove failed; attempting dpkg -r"
+        fi
+        if dpkg -s fastpull &>/dev/null; then
+            sudo dpkg -r fastpull || _warn "dpkg -r failed. You may need to remove the package manually."
+        fi
+    else
+        # Remove the installed binary path
+        local bin_path
+        bin_path=$(command -v fastpull || true)
+        if [[ -n "${bin_path}" && -f "${bin_path}" ]]; then
+            _info "Removing ${bin_path} ..."
+            rm -f "${bin_path}" || _fatal "Failed to remove ${bin_path}."
+        else
+            _warn "fastpull binary path not found in PATH. Skipping binary removal."
+        fi
+    fi
+
+    # Optional purge of runners and apps
+    local purge_all
+    purge_all="${FASTPULL_PURGE_ALL:-no}"
+    if [[ "${purge_all}" != "yes" ]]; then
+        _prompt "Also remove all runners under /opt/gha-runners? (yes|no)" purge_all "no" "FASTPULL_PURGE_ALL"
+    fi
+    if [[ "${purge_all}" == "yes" ]]; then
+        local base_runners="${GDR_RUNNER_BASE:-/opt/gha-runners}"
+        local base_apps="${GDR_APP_BASE:-/opt/apps}"
+        if [[ -d "${base_runners}" ]]; then
+            _info "Removing runners under ${base_runners} ..."
+            rm -rf "${base_runners}" || _warn "Failed to remove ${base_runners}."
+        fi
+        local purge_apps
+        purge_apps="${FASTPULL_PURGE_APPS:-no}"
+        if [[ "${purge_apps}" != "yes" ]]; then
+            _prompt "Also remove application directories under ${base_apps}? (yes|no)" purge_apps "no" "FASTPULL_PURGE_APPS"
+        fi
+        if [[ "${purge_apps}" == "yes" && -d "${base_apps}" ]]; then
+            _info "Removing app directories under ${base_apps} ..."
+            rm -rf "${base_apps}" || _warn "Failed to remove ${base_apps}."
+        fi
+    fi
+
+    _success "fastpull has been removed."
 }
 
 _cmd_upgrade() {
