@@ -15,21 +15,21 @@ readonly RUNNER_RELEASES_URL="${GITHUB_API_URL}/repos/actions/runner/releases/la
 
 # --- Colors ---
 setup_colors() {
-  if [[ -t 1 ]] && [[ "${FASTPULL_COLOR:-auto}" != "never" ]]; then
-    CLR_RESET="\033[0m"
-    CLR_RED="\033[0;31m"
-    CLR_GREEN="\033[0;32m"
-    CLR_YELLOW="\033[0;33m"
-    CLR_BLUE="\033[0;34m"
-    CLR_BOLD="\033[1m"
-  else
-    CLR_RESET=""
-    CLR_RED=""
-    CLR_GREEN=""
-    CLR_YELLOW=""
-    CLR_BLUE=""
-    CLR_BOLD=""
-  fi
+    if { [[ -t 1 ]] || [[ "${FASTPULL_COLOR:-auto}" == "always" ]]; } && [[ "${FASTPULL_COLOR:-auto}" != "never" ]]; then
+        CLR_RESET="\033[0m"
+        CLR_RED="\033[0;31m"
+        CLR_GREEN="\033[0;32m"
+        CLR_YELLOW="\033[0;33m"
+        CLR_BLUE="\033[0;34m"
+        CLR_BOLD="\033[1m"
+    else
+        CLR_RESET=""
+        CLR_RED=""
+        CLR_GREEN=""
+        CLR_YELLOW=""
+        CLR_BLUE=""
+        CLR_BOLD=""
+    fi
 }
 
 # --- Logging & Utility Functions ---
@@ -1106,9 +1106,33 @@ USAGE
 
 # --- Main Execution Logic ---
 main() {
+  # Parse global color flags before setting up colors
+  local color_mode="${FASTPULL_COLOR:-auto}"
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --no-color)
+        color_mode="never"; shift; ;;
+      --color=never)
+        color_mode="never"; shift; ;;
+      --color=auto)
+        color_mode="auto"; shift; ;;
+      --color=always)
+        color_mode="always"; shift; ;;
+      --)
+        shift; args+=("$@"); break ;;
+      *)
+        args+=("$1"); shift ;;
+    esac
+  done
+  FASTPULL_COLOR="${color_mode}"
   setup_colors
-  local cmd="$1"
-  shift || true
+
+  local cmd="${args[0]}"
+  # reset positional parameters to remaining args after cmd
+  if [[ ${#args[@]} -gt 0 ]]; then
+    set -- "${args[@]:1}"
+  fi
 
   case "${cmd}" in
   setup | activate | list | status | uninstall | destroy | upgrade | doctor | version)

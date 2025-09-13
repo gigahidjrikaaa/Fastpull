@@ -56,6 +56,7 @@ This is a storyboard for a terminal recording that shows the end-to-end flow.
 1.  **Install `fastpull` with a single curl command.**
     ```sh
     curl -sSL https://raw.githubusercontent.com/gigahidjrikaaa/Fastpull/main/scripts/curl-install.sh | bash
+
     ```
 2.  **Run the interactive setup.**
     ```bash
@@ -260,6 +261,10 @@ jobs:
 See `docs/ROADMAP.md` for planned improvements.
 
 Tip: Use `fastpull --help` for top-level help, or `fastpull <command> --help` for command-specific usage.
+
+No color output (for copy/paste or logs):
+- Add `--no-color` after `fastpull` or set `FASTPULL_COLOR=never`.
+- Example: `fastpull --no-color help`
 
 ## Where Things Go (after setup)
 
