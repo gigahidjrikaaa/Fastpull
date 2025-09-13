@@ -130,8 +130,7 @@ ${CLR_BOLD}USAGE:${CLR_RESET}
     fastpull <COMMAND> [OPTIONS]
 
 ${CLR_BOLD}COMMANDS:${CLR_RESET}
-    ${CLR_GREEN}setup${CLR_RESET}              Interactively set up a new self-hosted runner.
-    ${CLR_GREEN}activate${CLR_RESET}           Set up a runner for the current Git repo.
+    ${CLR_GREEN}setup${CLR_RESET}              Set up a runner (auto-detects repo when run inside one).
     ${CLR_GREEN}list${CLR_RESET}               List all runners managed by fastpull.
     ${CLR_GREEN}status <slug>${CLR_RESET}      Show the status of a specific runner.
     ${CLR_GREEN}upgrade [<slug>]${CLR_RESET}   Upgrade one or all runners to the latest (or specified) version.
@@ -221,145 +220,6 @@ _gen_runner_token() {
   echo -n "${token}"
 }
 
-_cmd_activate() {
-  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    cat <<'USAGE'
-Usage: fastpull activate [--help]
-
-From inside an existing Git repository on your VM, set up a self-hosted
-runner for this repo with minimal prompts, then generate a ready-to-use
-deployment workflow (.github/workflows/deploy.yml).
-
-Prompts: trigger (push/schedule/both), branch, schedule cron, deploy mode,
-and a GitHub registration token (unless provided via GDR_TOKEN).
-USAGE
-    return 0
-  fi
-
-  if ! git rev-parse --is-inside-work-tree &>/dev/null; then
-    _fatal "Not inside a Git repository. Run 'fastpull activate' in your project repo."
-  fi
-  local remote_url
-  if ! remote_url=$(git remote get-url origin 2>/dev/null); then
-    _fatal "No 'origin' remote found. Add a GitHub remote named 'origin' and retry."
-  fi
-  local https_url
-  https_url=$(_normalize_repo_url "${remote_url}")
-  if [[ -z "${https_url}" ]]; then
-    _fatal "Could not determine repository URL from remote 'origin'."
-  fi
-  local repo_name
-  repo_name=$(basename "${https_url}")
-  local default_slug
-  default_slug=$(_slugify "${repo_name}")
-
-  _info "Detected repository: ${https_url}"
-
-  local trigger branch cron_expr deploy_mode systemd_service slug labels token
-  _prompt "When to deploy? (push|schedule|both)" trigger "push" "GDR_TRIGGER"
-  _prompt "Deploy on pushes to branch" branch "main" "GDR_BRANCH"
-  if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
-    _prompt "Cron schedule (e.g., '0 2 * * *')" cron_expr "0 2 * * *" "GDR_CRON"
-  fi
-  _prompt "Deployment mode (docker|systemd|custom)" deploy_mode "docker" "GDR_DEPLOY_MODE"
-  if [[ "${deploy_mode}" == "systemd" ]]; then
-    _prompt "Systemd service name to restart on deploy" systemd_service "${default_slug}.service" "GDR_SYSTEMD_SERVICE"
-  fi
-  _prompt "Runner slug" slug "${default_slug}" "GDR_SLUG"
-  labels="self-hosted,linux,x64,${slug}"
-
-  # Obtain a registration token: prefer PAT-based generation if available
-  if [[ -n "${GDR_TOKEN:-}" ]]; then
-    token="${GDR_TOKEN}"
-  else
-    local use_pat
-    if [[ -n "${FASTPULL_GH_PAT:-${GITHUB_TOKEN:-}}" ]]; then
-      use_pat="${FASTPULL_USE_PAT:-yes}"
-    else
-      use_pat="${FASTPULL_USE_PAT:-no}"
-    fi
-    if [[ "${use_pat}" == "yes" ]]; then
-      token=$(_gen_runner_token "repo" "${https_url}")
-      _info "Obtained short-lived registration token from GitHub API."
-    else
-      _prompt_masked "GitHub Runner registration token (or set GDR_TOKEN)" token "GDR_TOKEN"
-    fi
-  fi
-
-  _info "Configuring runner non-interactively..."
-  local env_cmd=(env FASTPULL_NONINTERACTIVE=yes GDR_SCOPE=repo GDR_URL="${https_url}" GDR_APP_NAME="${repo_name}" GDR_SLUG="${slug}" GDR_RUNNER_LABELS="${labels}" GDR_DEPLOY_MODE="${deploy_mode}" GDR_TOKEN="${token}")
-  if [[ "${deploy_mode}" == "systemd" ]]; then
-    env_cmd+=(GDR_SYSTEMD_SERVICE="${systemd_service}")
-  fi
-  if ! sudo "${env_cmd[@]}" fastpull setup; then
-    _fatal "Runner setup failed."
-  fi
-
-  _info "Generating workflow at .github/workflows/deploy.yml ..."
-  local wf_dir=".github/workflows"
-  local wf_path="${wf_dir}/deploy.yml"
-  mkdir -p "${wf_dir}"
-  {
-    echo "# .github/workflows/deploy.yml"
-    echo "name: Deploy to VM"
-    echo
-    echo "on:"
-    if [[ "${trigger}" == "push" || "${trigger}" == "both" ]]; then
-      echo "  push:"
-      echo "    branches:"
-      echo "      - ${branch}"
-    fi
-    if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
-      echo "  schedule:"
-      echo "    - cron: '${cron_expr}'"
-    fi
-    echo "  workflow_dispatch:"
-    echo
-    cat <<EOF
-jobs:
-  deploy:
-    name: Deploy
-    runs-on: [self-hosted, linux, x64, ${slug}]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Deploy application
-        run: |
-          set -e
-          APP_DIR="/opt/apps/${slug}"
-          echo "--> Syncing application files to \\${APP_DIR}"
-          rsync -av --delete --exclude='.git/' ./ "\\${APP_DIR}/"
-          cd "\\${APP_DIR}"
-EOF
-    if [[ "${deploy_mode}" == "docker" ]]; then
-      cat <<'EOF'
-          echo "--> Pulling latest images"
-          docker compose pull || true
-          echo "--> Building and starting containers"
-          docker compose up -d --remove-orphans --build
-EOF
-    elif [[ "${deploy_mode}" == "systemd" ]]; then
-      echo "          echo \"--> Restarting service\""
-      echo "          sudo systemctl restart ${systemd_service}"
-    else
-      echo "          echo \"--> Running custom deploy script\""
-      echo "          ./deploy.sh"
-    fi
-    echo "          echo \"--> Deployment complete!\""
-  } > "${wf_path}"
-
-  local do_commit
-  _prompt "Commit workflow file now? (yes|no)" do_commit "yes" "GDR_COMMIT_WORKFLOW"
-  if [[ "${do_commit}" == "yes" ]]; then
-    git add "${wf_path}" || _warn "git add failed."
-    git commit -m "Add deploy workflow via fastpull" || _warn "git commit failed."
-    _info "You can now 'git push' to trigger a deployment (if using push trigger)."
-  else
-    _info "Workflow created at ${wf_path}. Remember to commit and push it."
-  fi
-
-  _success "Activation complete for ${https_url}."
-}
 
 _cmd_version() {
   echo "fastpull version ${FASTPULL_VERSION}"
@@ -370,19 +230,44 @@ _cmd_setup() {
         cat <<'USAGE'
 Usage: fastpull setup [--help]
 
-Interactively set up a new GitHub Actions self-hosted runner on this VM.
+Set up a GitHub Actions self-hosted runner on this VM.
+When run inside a Git repo, fastpull auto-detects the repo URL and
+writes a ready-to-use workflow into .github/workflows/deploy.yml with
+minimal prompts.
 
 Environment overrides (non-interactive): GDR_SCOPE, GDR_URL, GDR_APP_NAME,
 GDR_SLUG, GDR_RUNNER_LABELS, GDR_RUNNER_BASE, GDR_APP_BASE, GDR_DEPLOY_MODE,
 GDR_SYSTEMD_SERVICE, GDR_TOKEN, GDR_INSTALL_DOCKER, FASTPULL_NONINTERACTIVE.
-USAGE
+        USAGE
         return 0
     fi
 
     _check_root
   _check_deps "curl" "jq" "tar"
 
-  _info "Starting interactive GitHub Actions runner setup..."
+  # Auto-repo mode: if inside a Git repo and GDR_URL not provided, prefill
+  # values from the current repo so the prompts are minimized.
+  local auto_repo_mode="no"
+  local repo_https_url repo_name default_slug
+  if git rev-parse --is-inside-work-tree &>/dev/null && [[ -z "${GDR_URL:-}" ]]; then
+    local remote_url
+    if remote_url=$(git remote get-url origin 2>/dev/null); then
+      repo_https_url=$(_normalize_repo_url "${remote_url}")
+      if [[ -n "${repo_https_url}" ]]; then
+        repo_name=$(basename "${repo_https_url}")
+        default_slug=$(_slugify "${repo_name}")
+        auto_repo_mode="yes"
+        GDR_SCOPE="repo"
+        GDR_URL="${repo_https_url}"
+        GDR_APP_NAME="${repo_name}"
+        GDR_SLUG="${default_slug}"
+        GDR_RUNNER_LABELS="self-hosted,linux,x64,${default_slug}"
+        _info "Auto-detected repository: ${repo_https_url} (slug: ${default_slug})"
+      fi
+    fi
+  fi
+
+  _info "Starting GitHub Actions runner setup..."
   _info "Override any prompt by setting the corresponding GDR_* environment variable."
 
   local gdr_scope gdr_url gdr_app_name gdr_slug gdr_runner_labels gdr_runner_base gdr_app_base gdr_deploy_mode gdr_systemd_service gdr_token
@@ -560,34 +445,101 @@ USAGE
     fi
   fi
 
-  # Generate sample workflow
-  _info "Generating sample workflow file..."
-  local template_file="deploy.${gdr_deploy_mode}.yml"
-  local sample_workflow_path="${app_dir}/SAMPLE_deploy.yml"
+  # Generate workflow
+  if [[ "${auto_repo_mode}" == "yes" ]]; then
+    _info "Generating workflow at .github/workflows/deploy.yml ..."
+    local trigger branch cron_expr
+    _prompt "When to deploy? (push|schedule|both)" trigger "push" "GDR_TRIGGER"
+    _prompt "Deploy on pushes to branch" branch "main" "GDR_BRANCH"
+    if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
+      _prompt "Cron schedule (e.g., '0 2 * * *')" cron_expr "0 2 * * *" "GDR_CRON"
+    fi
+    local wf_dir=".github/workflows"
+    local wf_path="${wf_dir}/deploy.yml"
+    mkdir -p "${wf_dir}"
+    {
+      echo "# .github/workflows/deploy.yml"
+      echo "name: Deploy to VM"
+      echo
+      echo "on:"
+      if [[ "${trigger}" == "push" || "${trigger}" == "both" ]]; then
+        echo "  push:"
+        echo "    branches:"
+        echo "      - ${branch}"
+      fi
+      if [[ "${trigger}" == "schedule" || "${trigger}" == "both" ]]; then
+        echo "  schedule:"
+        echo "    - cron: '${cron_expr}'"
+      fi
+      echo "  workflow_dispatch:"
+      echo
+      cat <<EOF
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, linux, x64, ${gdr_slug}]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Deploy application
+        run: |
+          set -e
+          APP_DIR="/opt/apps/${gdr_slug}"
+          echo "--> Syncing application files to \${APP_DIR}"
+          rsync -av --delete --exclude='.git/' ./ "\${APP_DIR}/"
+          cd "\${APP_DIR}"
+EOF
+      if [[ "${gdr_deploy_mode}" == "docker" ]]; then
+        cat <<'EOF'
+          echo "--> Pulling latest images"
+          docker compose pull || true
+          echo "--> Building and starting containers"
+          docker compose up -d --remove-orphans --build
+EOF
+      elif [[ "${gdr_deploy_mode}" == "systemd" ]]; then
+        echo "          echo \"--> Restarting service\""
+        echo "          sudo systemctl restart ${gdr_systemd_service}"
+      else
+        echo "          echo \"--> Running custom deploy script\""
+        echo "          ./deploy.sh"
+      fi
+      echo "          echo \"--> Deployment complete!\""
+    } >"${wf_path}"
 
-  # This is a simplified template substitution.
-  # A real implementation might use a more robust templating function.
-  local template_content
-  template_content=$(get_template_content "${template_file}")
+    local do_commit
+    _prompt "Commit workflow file now? (yes|no)" do_commit "yes" "GDR_COMMIT_WORKFLOW"
+    if [[ "${do_commit}" == "yes" ]]; then
+      git add "${wf_path}" || _warn "git add failed."
+      git commit -m "Add deploy workflow via fastpull" || _warn "git commit failed."
+      _info "You can now 'git push' to trigger a deployment (if using push trigger)."
+    else
+      _info "Workflow created at ${wf_path}. Remember to commit and push it."
+    fi
 
-  # Replace placeholders
-  template_content="${template_content//APP_SLUG/${gdr_slug}}"
-  template_content="${template_content//MY_SERVICE/${gdr_systemd_service}}"
+    _success "Setup complete for runner '${gdr_slug}'!"
+  else
+    _info "Generating sample workflow file..."
+    local template_file="deploy.${gdr_deploy_mode}.yml"
+    local sample_workflow_path="${app_dir}/SAMPLE_deploy.yml"
+    local template_content
+    template_content=$(get_template_content "${template_file}")
+    template_content="${template_content//APP_SLUG/${gdr_slug}}"
+    template_content="${template_content//MY_SERVICE/${gdr_systemd_service}}"
+    echo "${template_content}" >"${sample_workflow_path}"
 
-  echo "${template_content}" >"${sample_workflow_path}"
-
-  _success "Setup complete for runner '${gdr_slug}'!"
-  echo
-  _info "--- NEXT STEPS ---"
-  echo -e "1. ${CLR_BOLD}Add the following labels to your repository/organization runners settings:${CLR_RESET}"
-  echo -e "   ${gdr_runner_labels}"
-  echo
-  echo -e "2. ${CLR_BOLD}Copy the sample workflow file into your project's .github/workflows/ directory:${CLR_RESET}"
-  echo -e "   ${CLR_YELLOW}File path:${CLR_RESET} ${sample_workflow_path}"
-  echo
-  echo -e "3. ${CLR_BOLD}Customize the workflow file as needed and commit it to your repository.${CLR_RESET}"
-  echo
-  echo -e "4. ${CLR_BOLD}Push a commit to trigger your first deployment!${CLR_RESET}"
+    _success "Setup complete for runner '${gdr_slug}'!"
+    echo
+    _info "--- NEXT STEPS ---"
+    echo -e "1. ${CLR_BOLD}Add the following labels to your repository/organization runners settings:${CLR_RESET}"
+    echo -e "   ${gdr_runner_labels}"
+    echo
+    echo -e "2. ${CLR_BOLD}Copy the sample workflow file into your project's .github/workflows/ directory:${CLR_RESET}"
+    echo -e "   ${CLR_YELLOW}File path:${CLR_RESET} ${sample_workflow_path}"
+    echo
+    echo -e "3. ${CLR_BOLD}Customize the workflow file as needed and commit it to your repository.${CLR_RESET}"
+    echo
+    echo -e "4. ${CLR_BOLD}Push a commit to trigger your first deployment!${CLR_RESET}"
+  fi
 }
 
 get_template_content() {
@@ -1135,7 +1087,7 @@ main() {
   fi
 
   case "${cmd}" in
-  setup | activate | list | status | uninstall | destroy | upgrade | doctor | version)
+  setup | list | status | uninstall | destroy | upgrade | doctor | version)
     _cmd_"${cmd}" "$@"
     ;;
   help | --help | -h | "")
@@ -1151,3 +1103,4 @@ main() {
 
 # Let's go
 main "$@"
+

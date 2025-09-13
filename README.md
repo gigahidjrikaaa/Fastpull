@@ -158,13 +158,13 @@ fastpull status my-app
 
 If you get stuck, see the Troubleshooting section below.
 
-### Alternative: One-Step Activation (in an existing repo)
+### One-Step Setup Inside Your Repo
 
-If you’ve already cloned your app repo onto the VM, you can set things up from inside it with fewer prompts:
+If you’ve already cloned your app repo onto the VM, run setup from inside it:
 
 ```bash
 cd /path/to/your/repo
-fastpull activate
+sudo fastpull setup
 ```
 
 What it does:
@@ -173,7 +173,7 @@ What it does:
 - Creates `.github/workflows/deploy.yml` in your repo (you can choose to auto-commit)
 - Configures the runner on the VM using your repo URL
 
-You’ll still need a GitHub Actions runner registration token. If you have it handy, paste it when prompted, or set it in `GDR_TOKEN` before running `fastpull activate`.
+Tip: Provide a PAT via `FASTPULL_GH_PAT` (or `GITHUB_TOKEN`) so fastpull can auto‑generate the short‑lived runner registration token for you.
 
 ### Setup Your First Runner
 
